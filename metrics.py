@@ -23,8 +23,20 @@ parser.add_argument("references", type=argparse.FileType('r'), nargs="+",
                     help="Path to all the reference files")
 
 
-def load_textfiles(references, hypothesis):
-    print("The number of references is {}".format(len(references)))
+def load_text_data(filename):
+    contents_file = open(filename, "r")
+    contents = []
+    for x in contents_file:
+        d = " ".join([w for w in x.split(' ') if
+                             ('<END>' not in w and '<START>' not in w and '<UNK>' not in w and '\n' not in w)])
+        contents.append(d)
+    return contents
+
+
+def load_textfiles(reference_file, hypothesis_file):
+    references = load_text_data(reference_file)
+    hypothesis = load_text_data(hypothesis_file)
+    #print("The number of references is {}".format(len(references)))
     refs = {idx: [lines.strip()] for (idx, lines) in enumerate(references)}
     hypo = {idx: [lines.strip()] for (idx, lines) in enumerate(hypothesis)}
     # take out newlines before creating dictionary
