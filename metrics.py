@@ -7,6 +7,8 @@ using the COCO metrics scripts
 """
 import argparse
 import logging
+import os
+# os.environ["JAVA_HOME"] = "/usr/bin/java"
 
 # this requires the coco-caption package, https://github.com/tylin/coco-caption
 from pycocoevalcap.bleu.bleu import Bleu
@@ -56,7 +58,7 @@ def score(ref, hypo):
     """
     scorers = [
         (Bleu(4), ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4"]),
-        (Meteor(), "METEOR"),
+        #(Meteor(), "METEOR"),
         (Rouge(), "ROUGE_L"),
         (Cider(), "CIDEr")
     ]
