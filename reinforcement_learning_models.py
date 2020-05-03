@@ -123,7 +123,7 @@ def train_reward_network(train_data, network_paths, batch_size=50, epochs=50000)
     return rewardNetwork
 
 
-def train_a2c_network(train_data, save_paths, network_paths, epoch_count=10, episodes=100,usePretrained=True):
+def train_a2c_network(train_data, save_paths, network_paths, epoch_count=10, episodes=100, usePretrained=True):
     
     model_save_path = save_paths["model_path"]
     results_save_path = save_paths["results_path"]
@@ -133,16 +133,13 @@ def train_a2c_network(train_data, save_paths, network_paths, epoch_count=10, epi
     valueNet = ValueNetwork(train_data["word_to_idx"]).to(device)
 
     if not usePretrained:
-        train_reward_network(train_data,network_paths)
-        train_policy_network(train_data,network_paths)
-        train_value_network(train_data,network_paths)
+        train_reward_network(train_data, network_paths)
+        train_policy_network(train_data, network_paths)
+        train_value_network(train_data, network_paths)
         
-    
     rewardNet.load_state_dict(torch.load(network_paths["reward_network"]))
     policyNet.load_state_dict(torch.load(network_paths["policy_network"]))
     valueNet.load_state_dict(torch.load(network_paths["value_network"]))
-
-
 
     rewardNet.train(mode=False)
     policyNet.train(mode=False)
@@ -270,3 +267,19 @@ def test_a2c_network(a2cNetwork, test_data, image_caption_data, data_size, valid
     real_captions_file.close()
     generated_captions_file.close()
     image_url_file.close()
+
+
+def load_a2c_models(model_path, train_data, network_paths):
+    
+    policyNet = PolicyNetwork(train_data["word_to_idx"]).to(device)
+    policyNet.load_state_dict(torch.load(network_paths["policy_network"]))
+    policyNet.train(mode=False)
+
+    valueNet = ValueNetwork(train_data["word_to_idx"]).to(device)
+    valueNet.load_state_dict(torch.load(network_paths["value_network"]))
+    valueNet.train(mode=False)
+
+    a2cNetwork = AdvantageActorCriticNetwork(valueNet, policyNet).to(device)
+    a2cNetwork.load_state_dict(torch.load(model_path))
+
+    return a2cNetwork
