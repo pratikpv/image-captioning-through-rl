@@ -1,3 +1,7 @@
 __pycache__/
-datasets/
 .vscode/
+datasets/
+logs/
+.vscode/settings.json
+.vscode/settings.json
+__pycache__/metrics.cpython-37.pyc

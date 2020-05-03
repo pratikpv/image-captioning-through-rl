@@ -15,7 +15,7 @@ def print_red(text):
     print('\033[31m', text, '\033[0m', sep='')
 
 
-def load_data(base_dir=BASE_DIR, max_train=None, pca_features=True, print_keys=False):
+def load_data(base_dir, max_train=None, pca_features=True, print_keys=False):
     data = {}
 
     caption_file = os.path.join(base_dir, 'coco2014_captions.h5')

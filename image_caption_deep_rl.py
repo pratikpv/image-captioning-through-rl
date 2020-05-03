@@ -21,7 +21,7 @@ from reinforcement_learning_networks import *
 
 # defaults and params
 device = "cuda"
-BASE_DIR = 'datasets/coco_captioning'
+BASE_DIR = os.path.join('datasets','coco_captioning')
 REAL_CAPTIONS_FILE = 'real_captions.txt'
 GENERATED_CAPTIONS_FILE = 'generated_captions.txt'
 IMAGE_URL_FILENAME = 'image_url.txt'
@@ -73,7 +73,7 @@ def train_a2cNetwork(train_data=None, epoch_count=10, episodes=100):
             dist = probs.cpu().detach().numpy()[0, 0]
             action = np.random.choice(probs.shape[-1], p=dist)
 
-            gen_cap = torch.from_numpy(np.array([action])).unsqueeze(0).to(device)
+            gen_cap = torch.from_numpy(np.array([action])).unsqueeze(0).to(device,dtype=torch.long)
             captions_in = torch.cat((captions_in, gen_cap), axis=1)
 
             log_prob = torch.log(probs[0, 0, action])
@@ -202,7 +202,7 @@ def main():
     max_train = None  # set None for whole traning dataset
     max_train_str = '' if max_train == None else str(max_train)
     print_green(f'[Info] Loading COCO dataset {max_train_str}')
-    data = load_data(max_train=max_train, print_keys=True)
+    data = load_data(base_dir=BASE_DIR,max_train=max_train, print_keys=True)
     print_green(f'[Info] COCO dataset loaded')
 
     print_green(f'[Info] Training A2C Network')
