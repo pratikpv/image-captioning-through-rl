@@ -128,7 +128,7 @@ def train_reward_network(train_data, network_paths, batch_size=50, epochs=50000)
     return rewardNetwork
 
 
-def train_a2c_network(train_data, save_paths, network_paths, epoch_count=10, episodes=100,usePretrained=True):
+def train_a2c_network(train_data, save_paths, network_paths, epoch_count=10, episodes=100,usePretrained=True,plot_freq=10):
     
     a2c_train_writer = SummaryWriter()
 
@@ -219,7 +219,7 @@ def train_a2c_network(train_data, save_paths, network_paths, epoch_count=10, epi
                 episode_t = time.time()
 
                 ## Summary Writer
-            if episode%10 == 0:
+            if episode % plot_freq == 0:
                 a2c_train_writer.add_scalar('A2C Network',episodicAvgLoss,episode)
         
         print(f"[training] epoch:{epoch} episodicAvgLoss: {episodicAvgLoss}")
