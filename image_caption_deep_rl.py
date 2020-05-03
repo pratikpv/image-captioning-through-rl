@@ -59,6 +59,8 @@ def train_a2cNetwork(train_data=None, epoch_count=10, episodes=100):
         captions = torch.tensor(captions, device=device).long()
 
         # decoded = decode_captions(captions, train_data['idx_to_word'])
+        
+        episode_t = time.time()
         for episode in range(episodes):
             log_probs = []
             values = []
@@ -97,6 +99,15 @@ def train_a2cNetwork(train_data=None, epoch_count=10, episodes=100):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            
+            if episode % 1000 == 0:
+                print("[training] episode: %s, time taken: %ss" % (episode, time.time() - episode_t))
+                print("[training] current memory allocated: %s\t | max memory allocated: %s\t | cached memory: %s" \
+                                % (torch.cuda.memory_allocated() / 1024 ** 2, \
+                                    torch.cuda.max_memory_allocated() / 1024 ** 2, \
+                                        torch.cuda.memory_cached() / 1024 ** 2))
+                episode_t = time.time()
+        
         print(f"[training] epoch:{epoch} episodicAvgLoss: {episodicAvgLoss}")
 
     torch.save(a2cNetwork.state_dict(), os.path.join(LOG_DIR, A2CNETWORK_WEIGHTS_FILE))
@@ -171,6 +182,9 @@ def calculate_a2cNetwork_score():
 
 def init_deep_rl():
     global LOG_DIR, device
+
+    #torch.backends.cudnn.enabled = False
+    #device = "cpu"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if torch.cuda.is_available():
         print_green(f"[Info] Working on: {device}, device_name: {torch.cuda.get_device_name(0)} ")
@@ -192,11 +206,11 @@ def main():
     print_green(f'[Info] COCO dataset loaded')
 
     print_green(f'[Info] Training A2C Network')
-    a2cNetwork = train_a2cNetwork(train_data=data, epoch_count=10, episodes=50000)
+    a2cNetwork = train_a2cNetwork(train_data=data, epoch_count=1000, episodes=5000)
     print_green(f'[Info] A2C Network trained')
 
     print_green(f'[Info] Testing A2C Network')
-    test_a2cNetwork(a2cNetwork, test_data=data, data_size=500)
+    test_a2cNetwork(a2cNetwork, data=data, data_size=500)
     print_green(f'[Info] A2C Network Tested')
 
     print_green(f'[Info] A2C Network score - start')
