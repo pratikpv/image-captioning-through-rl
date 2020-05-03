@@ -96,7 +96,7 @@ def main(args):
     print_green(f'[Info] Training A2C Network')
     with torch.autograd.set_detect_anomaly(True):
         a2cNetwork = train_a2c_network(train_data=data, save_paths=save_paths, network_paths=network_paths, \
-                        epoch_count=args.epochs, episodes=args.episodes,usePretrained=False) 
+                        epoch_count=args.epochs, episodes=args.episodes,usePretrained=args.pretrained) 
                         # set the flag usePretrained to use the pretrained models. It is true by default.
     print_green(f'[Info] A2C Network trained')
 
@@ -118,6 +118,7 @@ if __name__ == "__main__":
     parser.add_argument('--test_size', type=int, help='Size of the test set to use', default=5000)
     parser.add_argument('--epochs', type=int, help='Number of Epochs to use for Training the A2C Network', default=100)
     parser.add_argument('--episodes', type=int, help='Number of Episodes to use for Training the A2C Network', default=10000)
+    parser.add_argument('--pretrained', type=bool, help='Number of Episodes to use for Training the A2C Network', default=True)
         
     args = parser.parse_args()
 
