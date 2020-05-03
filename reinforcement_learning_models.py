@@ -169,7 +169,10 @@ def train_a2c_network(train_data, save_paths, network_paths, epoch_count=10, epi
             action = np.random.choice(probs.shape[-1], p=dist)
 
             gen_cap = torch.from_numpy(np.array([action])).unsqueeze(0).to(device)
-            captions_in = torch.cat((captions_in, gen_cap), axis=1)
+            try:
+                captions_in = torch.cat((captions_in, gen_cap), axis=1)
+            except:
+                captions_in = torch.cat((captions_in, gen_cap.long()), axis=1)
 
             log_probs = torch.log(probs[0, 0, action])
 
