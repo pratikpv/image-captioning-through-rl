@@ -5,10 +5,11 @@ import torch.optim as optim
 from tqdm import tqdm
 from utility_functions import *
 from reinforcement_learning_networks import *
+from torch.utils.tensorboard import SummaryWriter
 
 
 def train_value_network(train_data, network_paths, batch_size=50, epochs=50000):
-
+    value_writer = SummaryWriter()
     rewardNet = RewardNetwork(train_data["word_to_idx"]).to(device)
     rewardNet.load_state_dict(torch.load(network_paths["reward_network"]))
     for param in rewardNet.parameters():
@@ -50,6 +51,7 @@ def train_value_network(train_data, network_paths, batch_size=50, epochs=50000):
         if loss.item() < bestLoss:
             bestLoss = loss.item()
             torch.save(valueNetwork.state_dict(), network_paths["value_network"])
+            value_writer.add_scalar('Value Network',loss,epoch)
             print("epoch:", epoch, "loss:", loss.item())
         
         optimizer.zero_grad()
@@ -68,7 +70,7 @@ def train_policy_network(train_data, network_paths, batch_size=100, epochs=10000
     policyNetwork = PolicyNetwork(train_data["word_to_idx"]).to(device)
     criterion = nn.CrossEntropyLoss().to(device)
     optimizer = optim.Adam(policyNetwork.parameters(), lr=0.0001)
-
+    policy_writer = SummaryWriter()
     if pretrained:
         policyNetwork.load_state_dict(torch.load(network_paths["policy_network"]))  
     
@@ -89,6 +91,7 @@ def train_policy_network(train_data, network_paths, batch_size=100, epochs=10000
         if loss.item() < bestLoss:
             bestLoss = loss.item()
             torch.save(policyNetwork.state_dict(), network_paths["policy_network"])
+            policy_writer.add_scalar('Policy Network',loss,epoch)
             print("epoch:", epoch, "loss:", loss.item())
             
         optimizer.zero_grad()
@@ -98,6 +101,7 @@ def train_policy_network(train_data, network_paths, batch_size=100, epochs=10000
 
 def train_reward_network(train_data, network_paths, batch_size=50, epochs=50000):
 
+    reward_writer = SummaryWriter()
     rewardNetwork = RewardNetwork(train_data["word_to_idx"]).to(device)
     optimizer = optim.Adam(rewardNetwork.parameters(), lr=0.001)  
 
@@ -113,6 +117,7 @@ def train_reward_network(train_data, network_paths, batch_size=50, epochs=50000)
         if loss.item() < bestLoss:
             bestLoss = loss.item()
             torch.save(rewardNetwork.state_dict(), network_paths["reward_network"])
+            reward_writer.add_scalar('Reward Network',loss,epoch)
             print("epoch:", epoch, "loss:", loss.item())
         
         optimizer.zero_grad()
@@ -125,6 +130,8 @@ def train_reward_network(train_data, network_paths, batch_size=50, epochs=50000)
 
 def train_a2c_network(train_data, save_paths, network_paths, epoch_count=10, episodes=100,usePretrained=True):
     
+    a2c_train_writer = SummaryWriter()
+
     model_save_path = save_paths["model_path"]
     results_save_path = save_paths["results_path"]
 
@@ -210,6 +217,10 @@ def train_a2c_network(train_data, save_paths, network_paths, epoch_count=10, epi
                                         torch.cuda.memory_cached() / 1024 ** 2))
                 # print_garbage_collection()
                 episode_t = time.time()
+
+                ## Summary Writer
+            if episode%10 == 0:
+                a2c_train_writer.add_scalar('A2C Network',episodicAvgLoss,episode)
         
         print(f"[training] epoch:{epoch} episodicAvgLoss: {episodicAvgLoss}")
         rewardNet.rewrnn.init_hidden()
@@ -226,6 +237,7 @@ def train_a2c_network(train_data, save_paths, network_paths, epoch_count=10, epi
 
 def test_a2c_network(a2cNetwork, test_data, image_caption_data, data_size, validation_batch_size=100):
 
+    # a2c_test_writer = SummaryWriter()
     a2cNetwork.train(False)
 
     real_captions_filename = image_caption_data["real_captions_path"]
