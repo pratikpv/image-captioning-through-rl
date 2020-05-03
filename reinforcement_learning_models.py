@@ -7,7 +7,7 @@ from utility_functions import *
 from reinforcement_learning_networks import *
 
 
-def train_value_network(train_data, network_paths, batch_size=50):
+def train_value_network(train_data, network_paths, batch_size=50, epochs=50000):
 
     rewardNet = RewardNetwork(train_data["word_to_idx"]).to(device)
     rewardNet.load_state_dict(torch.load(network_paths["reward_network"]))
@@ -29,7 +29,7 @@ def train_value_network(train_data, network_paths, batch_size=50):
     bestLoss = 10000
     max_seq_len = 17
 
-    for epoch in range(50000):
+    for epoch in range(epochs):
         captions, features, _ = sample_coco_minibatch(train_data, batch_size=batch_size, split='train')
         features = torch.tensor(features, device=device).float()
         
@@ -62,7 +62,7 @@ def train_value_network(train_data, network_paths, batch_size=50):
     return valueNetwork
 
 
-def train_policy_network(train_data, network_paths, batch_size=100, pretrained=False):
+def train_policy_network(train_data, network_paths, batch_size=100, epochs=100000, pretrained=False):
 
     policyNetwork = PolicyNetwork(train_data["word_to_idx"]).to(device)
     criterion = nn.CrossEntropyLoss().to(device)
@@ -73,7 +73,7 @@ def train_policy_network(train_data, network_paths, batch_size=100, pretrained=F
     
     bestLoss = 1.0
 
-    for epoch in range(100000):
+    for epoch in range(epochs):
         captions, features, _ = sample_coco_minibatch(train_data, batch_size=batch_size, split='train')
         features = torch.tensor(features, device=device).float().unsqueeze(0)
         captions_in = torch.tensor(captions[:, :-1], device=device).long()
@@ -95,14 +95,14 @@ def train_policy_network(train_data, network_paths, batch_size=100, pretrained=F
         optimizer.step()
 
 
-def train_reward_network(train_data, network_paths, batch_size=50):
+def train_reward_network(train_data, network_paths, batch_size=50, epochs=50000):
 
     rewardNetwork = RewardNetwork(train_data["word_to_idx"]).to(device)
     optimizer = optim.Adam(rewardNetwork.parameters(), lr=0.001)  
 
     bestLoss = 10000
 
-    for epoch in range(50000):
+    for epoch in range(epochs):
         captions, features, _ = sample_coco_minibatch(train_data, batch_size=batch_size, split='train')
         features = torch.tensor(features, device=device).float()
         captions = torch.tensor(captions, device=device).long()
@@ -123,6 +123,9 @@ def train_reward_network(train_data, network_paths, batch_size=50):
 
 
 def train_a2c_network(train_data, save_paths, network_paths, epoch_count=10, episodes=100):
+    
+    model_save_path = save_paths["model_path"]
+    results_save_path = save_paths["results_path"]
 
     rewardNet = RewardNetwork(train_data["word_to_idx"]).to(device)
     policyNet = PolicyNetwork(train_data["word_to_idx"]).to(device)
@@ -199,10 +202,6 @@ def train_a2c_network(train_data, save_paths, network_paths, epoch_count=10, epi
         print(f"[training] epoch:{epoch} episodicAvgLoss: {episodicAvgLoss}")
         rewardNet.rewrnn.init_hidden()
         valueNet.valrnn.init_hidden()
-        
-
-    model_save_path = save_paths["model_path"]
-    results_save_path = save_paths["results_path"]
 
     torch.save(a2cNetwork.state_dict(), model_save_path)
     with open(results_save_path, 'a') as f:
@@ -213,7 +212,7 @@ def train_a2c_network(train_data, save_paths, network_paths, epoch_count=10, epi
     return a2cNetwork
 
 
-def test_a2c_network(a2cNetwork, test_data, image_caption_data, data_size=None, validation_batch_size=100):
+def test_a2c_network(a2cNetwork, test_data, image_caption_data, data_size, validation_batch_size=100):
 
     a2cNetwork.train(False)
 

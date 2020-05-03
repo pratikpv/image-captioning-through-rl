@@ -3,6 +3,7 @@ import json
 import h5py
 import sys
 import time
+import argparse
 
 import numpy as np
 
@@ -27,7 +28,6 @@ IMAGE_URL_FILENAME = 'image_url.txt'
 LOG_DIR = ""
 A2CNETWORK_WEIGHTS_FILE = 'a2cNetwork.pt'
 RESULTS_FILE = 'results.txt'
-save_paths, image_caption_data, network_paths = None, None, None
 
 #os.environ["JAVA_HOME"] = "/usr/bin/java"
 #sys.path.append("/usr/bin/java")
@@ -48,7 +48,7 @@ def calculate_a2cNetwork_score(image_caption_data):
         f.write('\n' + '-' * 10 + ' results ' + '-' * 10 + '\n')
 
 
-def init_deep_rl():
+def setup():
     global LOG_DIR, device
 
     #torch.backends.cudnn.enabled = False
@@ -80,11 +80,14 @@ def init_deep_rl():
         "value_network": "models/valueNetwork.pt",
     }
 
+    return save_paths, image_caption_data, network_paths
 
-def main():
-    init_deep_rl()
 
-    max_train = None  # set None for whole traning dataset
+def main(args):
+    
+    save_paths, image_caption_data, network_paths = setup()
+
+    max_train = None if args.training_size == 0 else args.training_size # set None for whole training dataset
     max_train_str = '' if max_train == None else str(max_train)
     print_green(f'[Info] Loading COCO dataset {max_train_str}')
     data = load_data(base_dir=BASE_DIR,max_train=max_train, print_keys=True)
@@ -92,11 +95,12 @@ def main():
 
     print_green(f'[Info] Training A2C Network')
     with torch.autograd.set_detect_anomaly(True):
-        a2cNetwork = train_a2c_network(train_data=data, save_paths=save_paths, network_paths=network_paths, epoch_count=100, episodes=5000)
+        a2cNetwork = train_a2c_network(train_data=data, save_paths=save_paths, network_paths=network_paths, \
+                        epoch_count=args.epochs, episodes=args.episodes)
     print_green(f'[Info] A2C Network trained')
 
     print_green(f'[Info] Testing A2C Network')
-    test_a2c_network(a2cNetwork, data=data, image_caption_data=image_caption_data, data_size=5000)
+    test_a2c_network(a2cNetwork, data=data, image_caption_data=image_caption_data, data_size=args.test_size)
     print_green(f'[Info] A2C Network Tested')
 
     print_green(f'[Info] A2C Network score - start')
@@ -106,4 +110,14 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    
+    parser = argparse.ArgumentParser(description='Generate Image Captions through Deep Reinforcement Learning')
+
+    parser.add_argument('--training_size', type=int, help='Size of the training set to use (set 0 for the full set)', default=0)
+    parser.add_argument('--test_size', type=int, help='Size of the test set to use', default=5000)
+    parser.add_argument('--epochs', type=int, help='Number of Epochs to use for Training the A2C Network', default=100)
+    parser.add_argument('--episodes', type=int, help='Number of Episodes to use for Training the A2C Network', default=10000)
+        
+    args = parser.parse_args()
+
+    main(args)
