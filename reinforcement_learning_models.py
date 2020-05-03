@@ -43,11 +43,6 @@ def train_a2c_network(train_data, save_paths, epoch_count=10, episodes=100):
         
         episode_t = time.time()
         for episode in range(episodes):
-            # log_probs = []
-            # values = []
-            # rewards = []
-            # captions_in = captions[episode:episode + 1, :]
-            # features_in = features[episode:episode + 1]
 
             captions_in = captions[episode:episode + 1, :]
             features_in = features[episode:episode + 1]
@@ -66,13 +61,9 @@ def train_a2c_network(train_data, save_paths, epoch_count=10, episodes=100):
             rewards = GetRewards(features_in, captions_in, rewardNet)
             rewards = rewards.cpu().detach().numpy()[0, 0]
 
-            # rewards.append(reward)
-            # values.append(value)
-            # log_probs.append(log_prob)
-
-            # values = torch.FloatTensor(values).to(device)
-            # rewards = torch.FloatTensor(rewards).to(device)
-            # log_probs = torch.stack(log_probs).to(device)
+            values = torch.FloatTensor([values]).to(device)
+            rewards = torch.FloatTensor([rewards]).to(device)
+            log_probs = torch.stack([log_probs]).to(device)
 
             advantage = values - rewards
             actorLoss = (-log_probs * advantage).mean()
