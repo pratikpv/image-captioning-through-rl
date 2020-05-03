@@ -2,6 +2,8 @@ import os
 import h5py
 import json
 import requests
+import gc
+import torch
 
 import numpy as np 
 from PIL import Image
@@ -121,3 +123,13 @@ def image_from_url(url):
     img = Image.open(BytesIO(response.content))
     return img
 
+def print_garbage_collection():
+    print("-"*30)
+    for obj in gc.get_objects():
+        try:
+            if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
+                print(type(obj), obj.size())
+        except:
+            pass
+    print("-"*30)
+    
