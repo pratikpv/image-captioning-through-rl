@@ -7,6 +7,24 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 MAX_SEQ_LEN = 17
 
+# https://cs230-stanford.github.io/pytorch-nlp.html#writing-a-custom-loss-function
+def VisualSemanticEmbeddingLoss(visuals, semantics):
+    beta = 0.2
+    N, D = visuals.shape
+    
+    visloss = torch.mm(visuals, semantics.t())
+    visloss = visloss - torch.diag(visloss).unsqueeze(1)
+    visloss = visloss + (beta/N)*(torch.ones((N, N)).to(device) - torch.eye(N).to(device))
+    visloss = F.relu(visloss)
+    visloss = torch.sum(visloss)/N
+    
+    semloss = torch.mm(semantics, visuals.t())
+    semloss = semloss - torch.diag(semloss).unsqueeze(1)
+    semloss = semloss + (beta/N)*(torch.ones((N, N)).to(device) - torch.eye(N).to(device))
+    semloss = F.relu(semloss)
+    semloss = torch.sum(semloss)/N
+    
+    return visloss + semloss
 
 def GenerateCaptions(features, captions, model):
     features = torch.tensor(features, device=device).float().unsqueeze(0)
@@ -58,17 +76,19 @@ class ValueNetworkRNN(nn.Module):
         self.idx_to_word = {i: w for w, i in word_to_idx.items()}
         vocab_size = len(word_to_idx)
 
-        self.hidden_cell = (
-            torch.zeros(1, 1, self.hidden_dim).to(device), torch.zeros(1, 1, self.hidden_dim).to(device))
-
+        self.init_hidden()
+        
         self.caption_embedding = nn.Embedding(vocab_size, wordvec_dim)
         self.lstm = nn.LSTM(wordvec_dim, hidden_dim)
+
+    def init_hidden(self):
+        self.hidden_cell = (torch.zeros(1, 1, self.hidden_dim).to(device), torch.zeros(1, 1, self.hidden_dim).to(device))
 
     def forward(self, captions):
         input_captions = self.caption_embedding(captions)
         output, self.hidden_cell = self.lstm(input_captions.view(len(input_captions), 1, -1), self.hidden_cell)
         return output
-
+    
 
 class ValueNetwork(nn.Module):
     def __init__(self, word_to_idx):
@@ -96,10 +116,13 @@ class RewardNetworkRNN(nn.Module):
         self.idx_to_word = {i: w for w, i in word_to_idx.items()}
         vocab_size = len(word_to_idx)
 
-        self.hidden_cell = torch.zeros(1, 1, self.hidden_dim).to(device)
+        self.init_hidden()
 
         self.caption_embedding = nn.Embedding(vocab_size, wordvec_dim)
         self.gru = nn.GRU(wordvec_dim, hidden_dim)
+
+    def init_hidden(self):
+        self.hidden_cell = torch.zeros(1, 1, self.hidden_dim).to(device)
 
     def forward(self, captions):
         input_captions = self.caption_embedding(captions)

@@ -27,7 +27,7 @@ IMAGE_URL_FILENAME = 'image_url.txt'
 LOG_DIR = ""
 A2CNETWORK_WEIGHTS_FILE = 'a2cNetwork.pt'
 RESULTS_FILE = 'results.txt'
-save_paths, image_caption_data = None, None
+save_paths, image_caption_data, network_paths = None, None, None
 
 #os.environ["JAVA_HOME"] = "/usr/bin/java"
 #sys.path.append("/usr/bin/java")
@@ -74,6 +74,12 @@ def init_deep_rl():
         "image_urls_path": os.path.join(LOG_DIR, IMAGE_URL_FILENAME),
     }
 
+    network_paths = {
+        "reward_network": "models/rewardNetwork.pt",
+        "policy_network": "models/policyNetwork.pt",
+        "value_network": "models/valueNetwork.pt",
+    }
+
 
 def main():
     init_deep_rl()
@@ -86,11 +92,11 @@ def main():
 
     print_green(f'[Info] Training A2C Network')
     with torch.autograd.set_detect_anomaly(True):
-        a2cNetwork = train_a2c_network(train_data=data, save_paths=save_paths, epoch_count=1000, episodes=5000)
+        a2cNetwork = train_a2c_network(train_data=data, save_paths=save_paths, network_paths=network_paths, epoch_count=100, episodes=5000)
     print_green(f'[Info] A2C Network trained')
 
     print_green(f'[Info] Testing A2C Network')
-    test_a2c_network(a2cNetwork, data=data, image_caption_data=image_caption_data, data_size=500)
+    test_a2c_network(a2cNetwork, data=data, image_caption_data=image_caption_data, data_size=5000)
     print_green(f'[Info] A2C Network Tested')
 
     print_green(f'[Info] A2C Network score - start')

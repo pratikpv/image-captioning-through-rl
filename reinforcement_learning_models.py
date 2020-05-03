@@ -1,4 +1,5 @@
 import time
+import random
 import torch.optim as optim
 
 from tqdm import tqdm
@@ -6,23 +7,134 @@ from utility_functions import *
 from reinforcement_learning_networks import *
 
 
-def train_value_network():
-    return
+def train_value_network(train_data, network_paths, batch_size=50):
 
-def train_policy_network():
-    return
+    rewardNet = RewardNetwork(train_data["word_to_idx"]).to(device)
+    rewardNet.load_state_dict(torch.load(network_paths["reward_network"]))
+    for param in rewardNet.parameters():
+        param.require_grad = False
+    print(rewardNet)
 
-def train_reward_network():
-    return
+    policyNet = PolicyNetwork(train_data["word_to_idx"]).to(device)
+    policyNet.load_state_dict(torch.load(network_paths["policy_network"]))
+    for param in policyNet.parameters():
+        param.require_grad = False
+    print(policyNet)
 
-def train_a2c_network(train_data, save_paths, epoch_count=10, episodes=100):
+    valueNetwork = ValueNetwork(train_data["word_to_idx"]).to(device)
+    criterion = nn.MSELoss().to(device)
+    optimizer = optim.Adam(valueNetwork.parameters(), lr=0.0001)
+    valueNetwork.train(mode=True)
+
+    bestLoss = 10000
+    max_seq_len = 17
+
+    for epoch in range(50000):
+        captions, features, _ = sample_coco_minibatch(train_data, batch_size=batch_size, split='train')
+        features = torch.tensor(features, device=device).float()
+        
+        # Generate captions using the policy network
+        captions = GenerateCaptions(features, captions, policyNet)
+        
+        # Compute the reward of the generated caption using reward network
+        rewards = GetRewards(features, captions, rewardNet)
+        
+        # Compute the value of a random state in the generation process
+    #     print(features.shape, captions[:, :random.randint(1, 17)].shape)
+        values = valueNetwork(features, captions[:, :random.randint(1, 17)])
+        
+        # Compute the loss for the value and the reward
+        loss = criterion(values, rewards)
+        
+        if loss.item() < bestLoss:
+            bestLoss = loss.item()
+            torch.save(valueNetwork.state_dict(), network_paths["value_network"])
+            print("epoch:", epoch, "loss:", loss.item())
+        
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        
+        valueNetwork.valrnn.hidden_cell[0].detach_()
+        valueNetwork.valrnn.hidden_cell[1].detach_()
+        rewardNet.rewrnn.hidden_cell.detach_()
+    
+    return valueNetwork
+
+
+def train_policy_network(train_data, network_paths, batch_size=100, pretrained=False):
+
+    policyNetwork = PolicyNetwork(train_data["word_to_idx"]).to(device)
+    criterion = nn.CrossEntropyLoss().to(device)
+    optimizer = optim.Adam(policyNetwork.parameters(), lr=0.0001)
+
+    if pretrained:
+        policyNetwork.load_state_dict(torch.load(network_paths["policy_network"]))  
+    
+    bestLoss = 1.0
+
+    for epoch in range(100000):
+        captions, features, _ = sample_coco_minibatch(train_data, batch_size=batch_size, split='train')
+        features = torch.tensor(features, device=device).float().unsqueeze(0)
+        captions_in = torch.tensor(captions[:, :-1], device=device).long()
+        captions_out = torch.tensor(captions[:, 1:], device=device).long()
+        output = policyNetwork(features, captions_in)
+        
+        loss = 0
+        for i in range(batch_size):
+            caplen = np.nonzero(captions[i] == 2)[0][0] + 1
+            loss += (caplen/batch_size)*criterion(output[i][:caplen], captions_out[i][:caplen])
+        
+        if loss.item() < bestLoss:
+            bestLoss = loss.item()
+            torch.save(policyNetwork.state_dict(), network_paths["policy_network"])
+            print("epoch:", epoch, "loss:", loss.item())
+            
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+
+def train_reward_network(train_data, network_paths, batch_size=50):
+
+    rewardNetwork = RewardNetwork(train_data["word_to_idx"]).to(device)
+    optimizer = optim.Adam(rewardNetwork.parameters(), lr=0.001)  
+
+    bestLoss = 10000
+
+    for epoch in range(50000):
+        captions, features, _ = sample_coco_minibatch(train_data, batch_size=batch_size, split='train')
+        features = torch.tensor(features, device=device).float()
+        captions = torch.tensor(captions, device=device).long()
+        ve, se = rewardNetwork(features, captions)
+        loss = VisualSemanticEmbeddingLoss(ve, se)
+        
+        if loss.item() < bestLoss:
+            bestLoss = loss.item()
+            torch.save(rewardNetwork.state_dict(), network_paths["reward_network"])
+            print("epoch:", epoch, "loss:", loss.item())
+        
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        rewardNetwork.rewrnn.hidden_cell.detach_()
+
+    return rewardNetwork
+
+
+def train_a2c_network(train_data, save_paths, network_paths, epoch_count=10, episodes=100):
+
     rewardNet = RewardNetwork(train_data["word_to_idx"]).to(device)
     policyNet = PolicyNetwork(train_data["word_to_idx"]).to(device)
     valueNet = ValueNetwork(train_data["word_to_idx"]).to(device)
 
-    rewardNet.load_state_dict(torch.load('models/rewardNetwork.pt'))
-    policyNet.load_state_dict(torch.load('models/policyNetwork.pt'))
-    valueNet.load_state_dict(torch.load('models/valueNetwork.pt'))
+    rewardNet.load_state_dict(torch.load(network_paths["reward_network"]))
+    policyNet.load_state_dict(torch.load(network_paths["policy_network"]))
+    valueNet.load_state_dict(torch.load(network_paths["value_network"]))
+
+    rewardNet.train(mode=False)
+    policyNet.train(mode=False)
+    valueNet.train(mode=False)
 
     a2cNetwork = AdvantageActorCriticNetwork(valueNet, policyNet).to(device)
     a2cNetwork.train(True)
@@ -85,7 +197,9 @@ def train_a2c_network(train_data, save_paths, epoch_count=10, episodes=100):
                 episode_t = time.time()
         
         print(f"[training] epoch:{epoch} episodicAvgLoss: {episodicAvgLoss}")
-        torch.cuda.empty_cache()
+        rewardNet.rewrnn.init_hidden()
+        valueNet.valrnn.init_hidden()
+        
 
     model_save_path = save_paths["model_path"]
     results_save_path = save_paths["results_path"]
