@@ -110,7 +110,8 @@ def main(args):
         print_green(f'[Info] A2C Network trained')
 
     print_green(f'[Info] Testing A2C Network')
-    test_a2c_network(a2cNetwork, data=data, image_caption_data=image_caption_data, data_size=args.test_size)
+    test_a2c_network(a2cNetwork, test_data=data, \
+                            image_caption_data=image_caption_data, data_size=args.test_size)
     print_green(f'[Info] A2C Network Tested')
 
     print_green(f'[Info] A2C Network score - start')
