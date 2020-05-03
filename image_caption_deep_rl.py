@@ -96,7 +96,8 @@ def main(args):
     print_green(f'[Info] Training A2C Network')
     with torch.autograd.set_detect_anomaly(True):
         a2cNetwork = train_a2c_network(train_data=data, save_paths=save_paths, network_paths=network_paths, \
-                        epoch_count=args.epochs, episodes=args.episodes)
+                        epoch_count=args.epochs, episodes=args.episodes,usePretrained=False) 
+                        # set the flag usePretrained to use the pretrained models. It is true by default.
     print_green(f'[Info] A2C Network trained')
 
     print_green(f'[Info] Testing A2C Network')

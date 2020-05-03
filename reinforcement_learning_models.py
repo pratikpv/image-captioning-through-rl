@@ -29,6 +29,7 @@ def train_value_network(train_data, network_paths, batch_size=50, epochs=50000):
     bestLoss = 10000
     max_seq_len = 17
 
+    print(f'[Info] Training Value Network\n')
     for epoch in range(epochs):
         captions, features, _ = sample_coco_minibatch(train_data, batch_size=batch_size, split='train')
         features = torch.tensor(features, device=device).float()
@@ -72,7 +73,7 @@ def train_policy_network(train_data, network_paths, batch_size=100, epochs=10000
         policyNetwork.load_state_dict(torch.load(network_paths["policy_network"]))  
     
     bestLoss = 1.0
-
+    print(f'[Info] Training Policy Network\n')
     for epoch in range(epochs):
         captions, features, _ = sample_coco_minibatch(train_data, batch_size=batch_size, split='train')
         features = torch.tensor(features, device=device).float().unsqueeze(0)
@@ -101,7 +102,7 @@ def train_reward_network(train_data, network_paths, batch_size=50, epochs=50000)
     optimizer = optim.Adam(rewardNetwork.parameters(), lr=0.001)  
 
     bestLoss = 10000
-
+    print(f'[Info] Training Reward Network\n')
     for epoch in range(epochs):
         captions, features, _ = sample_coco_minibatch(train_data, batch_size=batch_size, split='train')
         features = torch.tensor(features, device=device).float()
@@ -122,7 +123,7 @@ def train_reward_network(train_data, network_paths, batch_size=50, epochs=50000)
     return rewardNetwork
 
 
-def train_a2c_network(train_data, save_paths, network_paths, epoch_count=10, episodes=100):
+def train_a2c_network(train_data, save_paths, network_paths, epoch_count=10, episodes=100,usePretrained=True):
     
     model_save_path = save_paths["model_path"]
     results_save_path = save_paths["results_path"]
@@ -131,9 +132,17 @@ def train_a2c_network(train_data, save_paths, network_paths, epoch_count=10, epi
     policyNet = PolicyNetwork(train_data["word_to_idx"]).to(device)
     valueNet = ValueNetwork(train_data["word_to_idx"]).to(device)
 
+    if not usePretrained:
+        train_reward_network(train_data,network_paths)
+        train_policy_network(train_data,network_paths)
+        train_value_network(train_data,network_paths)
+        
+    
     rewardNet.load_state_dict(torch.load(network_paths["reward_network"]))
     policyNet.load_state_dict(torch.load(network_paths["policy_network"]))
     valueNet.load_state_dict(torch.load(network_paths["value_network"]))
+
+
 
     rewardNet.train(mode=False)
     policyNet.train(mode=False)
