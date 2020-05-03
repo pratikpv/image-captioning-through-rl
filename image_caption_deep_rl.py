@@ -115,7 +115,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate Image Captions through Deep Reinforcement Learning')
 
     parser.add_argument('--training_size', type=int, help='Size of the training set to use (set 0 for the full set)', default=0)
-    parser.add_argument('--test_size', type=int, help='Size of the test set to use', default=5000)
+    parser.add_argument('--test_size', type=int, help='Size of the test set to use', default=40504)
     parser.add_argument('--epochs', type=int, help='Number of Epochs to use for Training the A2C Network', default=100)
     parser.add_argument('--episodes', type=int, help='Number of Episodes to use for Training the A2C Network', default=10000)
     parser.add_argument('--pretrained', type=bool, help='Number of Episodes to use for Training the A2C Network', default=True)
