@@ -283,10 +283,9 @@ def test_a2c_network(a2cNetwork, test_data, image_caption_data, data_size, valid
             generated_captions_file.write(gen_cap_str + '\n')
             image_url_file.write(urls[j] + '\n')
 
-            # del captions_real_v, features_real_v
-            # del gen_cap, value, probs, dist
-        # torch.cuda.empty_cache()
-        # torch.cuda.synchronize()
+            real_captions_file.flush()
+            generated_captions_file.flush()
+            image_url_file.flush()
 
     real_captions_file.close()
     generated_captions_file.close()

@@ -51,7 +51,7 @@ def calculate_a2cNetwork_score(image_caption_data):
         f.write('\n' + '-' * 10 + ' results ' + '-' * 10 + '\n')
 
 
-def setup(base_path=None):
+def setup():
     global LOG_DIR, device
 
     # torch.backends.cudnn.enabled = False
@@ -62,12 +62,9 @@ def setup(base_path=None):
     else:
         print_green(f"[Info] Working on: {device}")
 
-    if base_path is not None:
-        LOG_DIR = base_path
-    else:
-        current_time_str = str(datetime.now().strftime("%d-%b-%Y_%H_%M_%S"))
-        LOG_DIR = os.path.join('logs', current_time_str)
-        os.makedirs(LOG_DIR)
+    current_time_str = str(datetime.now().strftime("%d-%b-%Y_%H_%M_%S"))
+    LOG_DIR = os.path.join('logs', current_time_str)
+    os.makedirs(LOG_DIR)
 
     save_paths = {
         "model_path": os.path.join(LOG_DIR, A2CNETWORK_WEIGHTS_FILE),
@@ -96,7 +93,7 @@ def main(args):
         base_path = os.path.split(args.test_model)[0]
     else:
         base_path = None
-    save_paths, image_caption_data, network_paths = setup(base_path)
+    save_paths, image_caption_data, network_paths = setup()
 
     max_train = None if args.training_size == 0 else args.training_size  # set None for whole training dataset
     max_train_str = '' if max_train == None else str(max_train)
