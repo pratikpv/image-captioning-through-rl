@@ -129,11 +129,11 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', type=int, help='Number of Epochs to use for Training the A2C Network', default=100)
     parser.add_argument('--episodes', type=int, help='Number of Episodes to use for Training the A2C Network',
                         default=10000)
-    parser.add_argument('--pretrained', type=bool, help='Number of Episodes to use for Training the A2C Network',
-                        default=True)
-    parser.add_argument('--postprocess', type=bool,
+    parser.add_argument('--pretrained', type=int, help='Flag to switch between using pretrained models or training from scratch',
+                        default=1)
+    parser.add_argument('--postprocess', type=int,
                         help='Post process data to download images from the validation cycle',
-                        default=True)
+                        default=1)
     parser.add_argument('--plot', type=int, help='records the data for tensorboard plots after this many episodes', default=10)
         
 

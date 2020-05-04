@@ -56,9 +56,11 @@ def train_value_network(train_data, network_paths,plot_dir, batch_size=50, epoch
         if loss.item() < bestLoss:
             bestLoss = loss.item()
             torch.save(valueNetwork.state_dict(), network_paths["value_network"])
-            value_writer.add_scalar('Value Network',loss,epoch)
+            
             print("epoch:", epoch, "loss:", loss.item())
-        
+
+        value_writer.add_scalar('Value Network',loss,epoch)
+
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -98,9 +100,11 @@ def train_policy_network(train_data, network_paths,plot_dir, batch_size=100, epo
         if loss.item() < bestLoss:
             bestLoss = loss.item()
             torch.save(policyNetwork.state_dict(), network_paths["policy_network"])
-            policy_writer.add_scalar('Policy Network',loss,epoch)
-            print("epoch:", epoch, "loss:", loss.item())
             
+            print("epoch:", epoch, "loss:", loss.item())
+
+        policy_writer.add_scalar('Policy Network',loss,epoch)
+
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -124,8 +128,10 @@ def train_reward_network(train_data, network_paths,plot_dir, batch_size=50, epoc
         if loss.item() < bestLoss:
             bestLoss = loss.item()
             torch.save(rewardNetwork.state_dict(), network_paths["reward_network"])
-            reward_writer.add_scalar('Reward Network',loss,epoch)
+            
             print("epoch:", epoch, "loss:", loss.item())
+
+        reward_writer.add_scalar('Reward Network',loss,epoch)
         
         optimizer.zero_grad()
         loss.backward()
@@ -135,7 +141,7 @@ def train_reward_network(train_data, network_paths,plot_dir, batch_size=50, epoc
     return rewardNetwork
 
 
-def train_a2c_network(train_data, save_paths, network_paths, plot_dir,epoch_count=10, episodes=100,usePretrained=True,plot_freq=10):
+def train_a2c_network(train_data, save_paths, network_paths, plot_dir,epoch_count=10, episodes=100,usePretrained=1,plot_freq=10):
     
     a2c_train_writer = SummaryWriter(log_dir=os.path.join(plot_dir,'runs'))
 
