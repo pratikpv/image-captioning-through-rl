@@ -5,9 +5,14 @@ import requests
 import gc
 import torch
 
-import numpy as np 
+import numpy as np
 from PIL import Image
 from io import BytesIO
+from metrics import *
+import sys
+import os
+import urllib.request
+
 
 def print_green(text):
     print('\033[32m', text, '\033[0m', sep='')
@@ -123,13 +128,61 @@ def image_from_url(url):
     img = Image.open(BytesIO(response.content))
     return img
 
+
 def print_garbage_collection():
-    print("-"*30)
+    print("-" * 30)
     for obj in gc.get_objects():
         try:
             if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
                 print(type(obj), obj.size())
         except:
             pass
-    print("-"*30)
-    
+    print("-" * 30)
+
+
+def post_process_data(image_caption_data, top_item_count=5):
+    max_key = 'Bleu_1'
+    score_list = []
+
+    real_captions_filename = image_caption_data["real_captions_path"]
+    generated_captions_filename = image_caption_data["generated_captions_path"]
+    image_url_filename = image_caption_data["image_urls_path"]
+    best_score_file_path = image_caption_data["best_score_file_path"]
+    best_score_images_path = image_caption_data["best_score_images_path"]
+
+    real_captions_file = open(real_captions_filename, "r")
+    generated_captions_file = open(generated_captions_filename, "r")
+    image_url_file = open(image_url_filename, "r")
+    best_score_file = open(best_score_file_path, "w")
+
+    real_captions_lines = real_captions_file.readlines()
+    generated_captions_lines = generated_captions_file.readlines()
+    image_url_lines = image_url_file.readlines()
+    data_len = len(real_captions_lines)
+
+    for i in range(data_len):
+        s = get_singleton_score(real_captions_lines[i], generated_captions_lines[i])
+        score_list.append(s[max_key])
+
+    arr = np.array(score_list)
+    top_items_index = arr.argsort()[::-1][:top_item_count]
+
+    if not os.path.isdir(best_score_images_path):
+        os.mkdir(best_score_images_path)
+
+    for i in top_items_index:
+        buff = 'item_index[%d] score:[%f] real_cap:[%s] generated_cap:[%s] \n' % (
+            i + 1, score_list[i], real_captions_lines[i].strip(), generated_captions_lines[i].strip())
+        best_score_file.write(buff)
+        try:
+            i_name = "%d.jpg" % (i+1)
+            i_name = str(os.path.join(best_score_images_path, i_name))
+            urllib.request.urlretrieve(image_url_lines[i], i_name)
+        except:
+            e = sys.exc_info()[0]
+            print(f'downloading {image_url_lines[i]} failed with {e}')
+
+    real_captions_file.close()
+    generated_captions_file.close()
+    image_url_file.close()
+    best_score_file.close()
