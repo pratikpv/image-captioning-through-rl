@@ -99,7 +99,11 @@ def main(args):
 
     print_green(f'[Info] Training A2C Network')
     with torch.autograd.set_detect_anomaly(True):
-        a2cNetwork = train_a2c_network(train_data=data, save_paths=save_paths, network_paths=network_paths, \
+        if args.curriculum:
+            a2cNetwork = train_a2c_network_curriculum(train_data=data, save_paths=save_paths, network_paths=network_paths, \
+                        plot_dir = LOG_DIR,curriculum=[2,4,6,8,10],epoch_count=args.epochs, episodes=args.episodes,usePretrained=args.pretrained,plot_freq=args.plot)
+        else:
+            a2cNetwork = train_a2c_network(train_data=data, save_paths=save_paths, network_paths=network_paths, \
                         plot_dir = LOG_DIR,epoch_count=args.epochs, episodes=args.episodes,usePretrained=args.pretrained,plot_freq=args.plot)
                         # set the flag usePretrained to use the pretrained models. It is true by default.
     print_green(f'[Info] A2C Network trained')
@@ -135,6 +139,8 @@ if __name__ == "__main__":
                         help='Post process data to download images from the validation cycle',
                         default=True)
     parser.add_argument('--plot', type=int, help='records the data for tensorboard plots after this many episodes', default=10)
+
+    parser.add_argument('--curriculum',type=bool,help='Use curriculum training approach',default=True)
         
 
     args = parser.parse_args()
