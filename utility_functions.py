@@ -141,6 +141,7 @@ def print_garbage_collection():
 
 
 def post_process_data(image_caption_data, top_item_count=5):
+    max_key = 'Bleu_1'
     score_list = []
 
     real_captions_filename = image_caption_data["real_captions_path"]
@@ -161,11 +162,7 @@ def post_process_data(image_caption_data, top_item_count=5):
 
     for i in range(data_len):
         s = get_singleton_score(real_captions_lines[i], generated_captions_lines[i])
-        avg = 0.0
-        for k in s.keys():
-            avg += s[k]
-        avg /= len(s.keys())
-        score_list.append(avg)
+        score_list.append(s[max_key])
 
     arr = np.array(score_list)
     top_items_index = arr.argsort()[::-1][:top_item_count]
@@ -178,7 +175,7 @@ def post_process_data(image_caption_data, top_item_count=5):
             i + 1, score_list[i], real_captions_lines[i].strip(), generated_captions_lines[i].strip())
         best_score_file.write(buff)
         try:
-            i_name = "%d.jpg" % (i + 1)
+            i_name = "%d.jpg" % (i+1)
             i_name = str(os.path.join(best_score_images_path, i_name))
             urllib.request.urlretrieve(image_url_lines[i], i_name)
         except:
