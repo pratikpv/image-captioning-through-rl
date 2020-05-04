@@ -8,9 +8,9 @@ from reinforcement_learning_networks import *
 from torch.utils.tensorboard import SummaryWriter
 
 
-def train_value_network(train_data, network_paths,plot_dir, batch_size=50, epochs=50000):
+def train_value_network(train_data, network_paths, plot_dir, batch_size=50, epochs=50000):
 
-    value_writer = SummaryWriter(log_dir = os.path.join(plot_dir,'runs'))
+    value_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
 
     rewardNet = RewardNetwork(train_data["word_to_idx"]).to(device)
     rewardNet.load_state_dict(torch.load(network_paths["reward_network"]))
@@ -38,10 +38,10 @@ def train_value_network(train_data, network_paths,plot_dir, batch_size=50, epoch
         features = torch.tensor(features, device=device).float()
         
         # Generate captions using the policy network
-        captions = GenerateCaptions(features, captions, policyNet)
+        # captions = GenerateCaptions(features, captions, policyNet)
 
         # Generate Captions using policy and value networks (Look Ahead Inference)
-        # captions = GenerateCaptionsLI(features, captions,policyNet,valueNetwork)
+        captions = GenerateCaptionsLI(features, captions, policyNet, valueNetwork)
         
         # Compute the reward of the generated caption using reward network
         rewards = GetRewards(features, captions, rewardNet)
@@ -72,13 +72,13 @@ def train_value_network(train_data, network_paths,plot_dir, batch_size=50, epoch
     return valueNetwork
 
 
-def train_policy_network(train_data, network_paths,plot_dir, batch_size=100, epochs=100000, pretrained=False):
+def train_policy_network(train_data, network_paths, plot_dir, batch_size=100, epochs=100000, pretrained=False):
 
     policyNetwork = PolicyNetwork(train_data["word_to_idx"]).to(device)
     criterion = nn.CrossEntropyLoss().to(device)
     optimizer = optim.Adam(policyNetwork.parameters(), lr=0.0001)
 
-    policy_writer = SummaryWriter(log_dir = os.path.join(plot_dir,'runs'))
+    policy_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
 
     if pretrained:
         policyNetwork.load_state_dict(torch.load(network_paths["policy_network"]))  
@@ -110,9 +110,9 @@ def train_policy_network(train_data, network_paths,plot_dir, batch_size=100, epo
         optimizer.step()
 
 
-def train_reward_network(train_data, network_paths,plot_dir, batch_size=50, epochs=50000):
+def train_reward_network(train_data, network_paths, plot_dir, batch_size=50, epochs=50000):
 
-    reward_writer = SummaryWriter(log_dir = os.path.join(plot_dir,'runs'))
+    reward_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
     rewardNetwork = RewardNetwork(train_data["word_to_idx"]).to(device)
     optimizer = optim.Adam(rewardNetwork.parameters(), lr=0.001)  
 

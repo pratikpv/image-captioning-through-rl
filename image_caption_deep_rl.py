@@ -143,7 +143,6 @@ if __name__ == "__main__":
     parser.add_argument('--postprocess', type=bool, help='Post process data to download images from the validation cycle', default=True)
     parser.add_argument('--plot', type=int, help='records the data for tensorboard plots after this many episodes', default=10)
         
-
     args = parser.parse_args()
 
     main(args)
