@@ -52,7 +52,7 @@ def GenerateCaptionsLI(features, captions, policyNet, valueNet, beamsize=5, most
         candidates = ordered_candidates[:beamsize]
     
     if most_likely == True:
-        return candidates[0][0]
+        return candidates[0][0][0]
     return candidates
 
 
