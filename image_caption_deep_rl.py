@@ -101,15 +101,23 @@ def main(args):
     data = load_data(base_dir=BASE_DIR, max_train=max_train, print_keys=True)
     print_green(f'[Info] COCO dataset loaded')
 
+    
     if os.path.isfile(args.test_model) and os.path.split(args.test_model)[1] == "a2cNetwork.pt":
         print_green(f'[Info] Loading A2C Network')
         a2cNetwork = load_a2c_models(args.test_model, data, network_paths)
         print_green(f'[Info] A2C Network loaded')
     else:
         print_green(f'[Info] Training A2C Network')
-        a2cNetwork = train_a2c_network(train_data=data, save_paths=save_paths, network_paths=network_paths, \
-                        plot_dir=LOG_DIR, epoch_count=args.epochs, episodes=args.episodes, usePretrained=args.pretrained, plot_freq=args.plot) 
-        print_green(f'[Info] A2C Network trained')
+        with torch.autograd.set_detect_anomaly(True):
+            if args.curriculum:
+                a2cNetwork = train_a2c_network_curriculum(train_data=data, save_paths=save_paths, network_paths=network_paths, \
+                            plot_dir = LOG_DIR,curriculum=[2,4,6,8,10],epoch_count=args.epochs, episodes=args.episodes,usePretrained=args.pretrained,plot_freq=args.plot)
+            else:
+                a2cNetwork = train_a2c_network(train_data=data, save_paths=save_paths, network_paths=network_paths, \
+                            plot_dir = LOG_DIR,epoch_count=args.epochs, episodes=args.episodes,usePretrained=args.pretrained,plot_freq=args.plot)
+                        # set the flag usePretrained to use the pretrained models. It is true by default.
+            print_green(f'[Info] A2C Network trained')
+
 
     print_green(f'[Info] Testing A2C Network')
     test_a2c_network(a2cNetwork, test_data=data, \
@@ -139,6 +147,8 @@ if __name__ == "__main__":
     parser.add_argument('--test_model', type=str, help='Test a pretrained advantage actor critic model', default="")
     parser.add_argument('--postprocess', type=bool, help='Post process data to download images from the validation cycle', default=True)
     parser.add_argument('--plot', type=int, help='records the data for tensorboard plots after this many episodes', default=10)
+
+    parser.add_argument('--curriculum',type=bool,help='Use curriculum training approach',default=False)
         
     args = parser.parse_args()
 
