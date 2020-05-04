@@ -131,9 +131,9 @@ if __name__ == "__main__":
                         default=10000)
     parser.add_argument('--pretrained', type=int, help='Flag to switch between using pretrained models or training from scratch',
                         default=1)
-    parser.add_argument('--postprocess', type=int,
+    parser.add_argument('--postprocess', type=bool,
                         help='Post process data to download images from the validation cycle',
-                        default=1)
+                        default=True)
     parser.add_argument('--plot', type=int, help='records the data for tensorboard plots after this many episodes', default=10)
         
 
