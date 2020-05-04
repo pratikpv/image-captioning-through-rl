@@ -8,9 +8,9 @@ from reinforcement_learning_networks import *
 from torch.utils.tensorboard import SummaryWriter
 
 
-def train_value_network(train_data, network_paths,plot_dir, batch_size=50, epochs=50000):
+def train_value_network(train_data, network_paths, plot_dir, batch_size=50, epochs=50000):
 
-    value_writer = SummaryWriter(log_dir = os.path.join(plot_dir,'runs'))
+    value_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
 
     rewardNet = RewardNetwork(train_data["word_to_idx"]).to(device)
     rewardNet.load_state_dict(torch.load(network_paths["reward_network"]))
@@ -38,10 +38,10 @@ def train_value_network(train_data, network_paths,plot_dir, batch_size=50, epoch
         features = torch.tensor(features, device=device).float()
         
         # Generate captions using the policy network
-        captions = GenerateCaptions(features, captions, policyNet)
+        # captions = GenerateCaptions(features, captions, policyNet)
 
         # Generate Captions using policy and value networks (Look Ahead Inference)
-        # captions = GenerateCaptionsLI(features, captions,policyNet,valueNetwork)
+        captions = GenerateCaptionsLI(features, captions, policyNet, valueNetwork)
         
         # Compute the reward of the generated caption using reward network
         rewards = GetRewards(features, captions, rewardNet)
@@ -72,13 +72,13 @@ def train_value_network(train_data, network_paths,plot_dir, batch_size=50, epoch
     return valueNetwork
 
 
-def train_policy_network(train_data, network_paths,plot_dir, batch_size=100, epochs=100000, pretrained=False):
+def train_policy_network(train_data, network_paths, plot_dir, batch_size=100, epochs=100000, pretrained=False):
 
     policyNetwork = PolicyNetwork(train_data["word_to_idx"]).to(device)
     criterion = nn.CrossEntropyLoss().to(device)
     optimizer = optim.Adam(policyNetwork.parameters(), lr=0.0001)
 
-    policy_writer = SummaryWriter(log_dir = os.path.join(plot_dir,'runs'))
+    policy_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
 
     if pretrained:
         policyNetwork.load_state_dict(torch.load(network_paths["policy_network"]))  
@@ -110,9 +110,9 @@ def train_policy_network(train_data, network_paths,plot_dir, batch_size=100, epo
         optimizer.step()
 
 
-def train_reward_network(train_data, network_paths,plot_dir, batch_size=50, epochs=50000):
+def train_reward_network(train_data, network_paths, plot_dir, batch_size=50, epochs=50000):
 
-    reward_writer = SummaryWriter(log_dir = os.path.join(plot_dir,'runs'))
+    reward_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
     rewardNetwork = RewardNetwork(train_data["word_to_idx"]).to(device)
     optimizer = optim.Adam(rewardNetwork.parameters(), lr=0.001)  
 
@@ -141,32 +141,28 @@ def train_reward_network(train_data, network_paths,plot_dir, batch_size=50, epoc
     return rewardNetwork
 
 
-def train_a2c_network(train_data, save_paths, network_paths, plot_dir,epoch_count=10, episodes=100,usePretrained=1,plot_freq=10):
+def train_a2c_network(train_data, save_paths, network_paths, plot_dir, epoch_count=10, episodes=100, usePretrained=True, plot_freq=10):
     
     a2c_train_writer = SummaryWriter(log_dir=os.path.join(plot_dir,'runs'))
 
     model_save_path = save_paths["model_path"]
     results_save_path = save_paths["results_path"]
 
-    rewardNet = RewardNetwork(train_data["word_to_idx"]).to(device)
-    policyNet = PolicyNetwork(train_data["word_to_idx"]).to(device)
-    valueNet = ValueNetwork(train_data["word_to_idx"]).to(device)
+    if usePretrained:
+        rewardNet = RewardNetwork(train_data["word_to_idx"]).to(device)
+        policyNet = PolicyNetwork(train_data["word_to_idx"]).to(device)
+        valueNet = ValueNetwork(train_data["word_to_idx"]).to(device)
 
-    if not usePretrained:
-        train_reward_network(train_data,network_paths,plot_dir)
-        train_policy_network(train_data,network_paths,plot_dir)
-        train_value_network(train_data,network_paths,plot_dir)
-        
-    
-    rewardNet.load_state_dict(torch.load(network_paths["reward_network"]))
-    policyNet.load_state_dict(torch.load(network_paths["policy_network"]))
-    valueNet.load_state_dict(torch.load(network_paths["value_network"]))
+        rewardNet.load_state_dict(torch.load(network_paths["reward_network"]))
+        policyNet.load_state_dict(torch.load(network_paths["policy_network"]))
+        valueNet.load_state_dict(torch.load(network_paths["value_network"]))
 
+    else:
+        rewardNet = train_reward_network(train_data, network_paths)
+        policyNet = train_policy_network(train_data, network_paths)
+        valueNet = train_value_network(train_data, network_paths)
 
-
-    rewardNet.train(mode=False)
-    policyNet.train(mode=False)
-    valueNet.train(mode=False)
+    # rewardNet.train(mode=False)
 
     a2cNetwork = AdvantageActorCriticNetwork(valueNet, policyNet).to(device)
     a2cNetwork.train(True)
@@ -183,8 +179,6 @@ def train_a2c_network(train_data, save_paths, network_paths, plot_dir,epoch_coun
         features = torch.tensor(features, device=device).float()
         captions = torch.tensor(captions, device=device).long()
 
-        # decoded = decode_captions(captions, train_data['idx_to_word'])
-        
         episode_t = time.time()
         for episode in range(episodes):
 
@@ -400,8 +394,6 @@ def test_a2c_network(a2cNetwork, data, image_caption_data, data_size, validation
         generated_captions_file.write(gen_cap_str + '\n')
         image_url_file.write(urls[0] + '\n')
 
-        # captions_real_v = captions_real_v.to('cpu')
-        # features_real_v = features_real_v.to('cpu')
         del captions_real_v, features_real_v
         del gen_cap, value, probs, dist
         torch.cuda.empty_cache()
@@ -410,3 +402,19 @@ def test_a2c_network(a2cNetwork, data, image_caption_data, data_size, validation
     real_captions_file.close()
     generated_captions_file.close()
     image_url_file.close()
+
+
+def load_a2c_models(model_path, train_data, network_paths):
+    
+    policyNet = PolicyNetwork(train_data["word_to_idx"]).to(device)
+    policyNet.load_state_dict(torch.load(network_paths["policy_network"]))
+    policyNet.train(mode=False)
+
+    valueNet = ValueNetwork(train_data["word_to_idx"]).to(device)
+    valueNet.load_state_dict(torch.load(network_paths["value_network"]))
+    valueNet.train(mode=False)
+
+    a2cNetwork = AdvantageActorCriticNetwork(valueNet, policyNet).to(device)
+    a2cNetwork.load_state_dict(torch.load(model_path))
+
+    return a2cNetwork
