@@ -8,8 +8,10 @@ from reinforcement_learning_networks import *
 from torch.utils.tensorboard import SummaryWriter
 
 
-def train_value_network(train_data, network_paths, batch_size=50, epochs=50000):
-    value_writer = SummaryWriter()
+def train_value_network(train_data, network_paths,plot_dir, batch_size=50, epochs=50000):
+
+    value_writer = SummaryWriter(log_dir = os.path.join(plot_dir,'runs'))
+
     rewardNet = RewardNetwork(train_data["word_to_idx"]).to(device)
     rewardNet.load_state_dict(torch.load(network_paths["reward_network"]))
     for param in rewardNet.parameters():
@@ -68,12 +70,14 @@ def train_value_network(train_data, network_paths, batch_size=50, epochs=50000):
     return valueNetwork
 
 
-def train_policy_network(train_data, network_paths, batch_size=100, epochs=100000, pretrained=False):
+def train_policy_network(train_data, network_paths,plot_dir, batch_size=100, epochs=100000, pretrained=False):
 
     policyNetwork = PolicyNetwork(train_data["word_to_idx"]).to(device)
     criterion = nn.CrossEntropyLoss().to(device)
     optimizer = optim.Adam(policyNetwork.parameters(), lr=0.0001)
-    policy_writer = SummaryWriter()
+
+    policy_writer = SummaryWriter(log_dir = os.path.join(plot_dir,'runs'))
+
     if pretrained:
         policyNetwork.load_state_dict(torch.load(network_paths["policy_network"]))  
     
@@ -102,9 +106,9 @@ def train_policy_network(train_data, network_paths, batch_size=100, epochs=10000
         optimizer.step()
 
 
-def train_reward_network(train_data, network_paths, batch_size=50, epochs=50000):
+def train_reward_network(train_data, network_paths,plot_dir, batch_size=50, epochs=50000):
 
-    reward_writer = SummaryWriter()
+    reward_writer = SummaryWriter(log_dir = os.path.join(plot_dir,'runs'))
     rewardNetwork = RewardNetwork(train_data["word_to_idx"]).to(device)
     optimizer = optim.Adam(rewardNetwork.parameters(), lr=0.001)  
 
@@ -143,9 +147,9 @@ def train_a2c_network(train_data, save_paths, network_paths, plot_dir,epoch_coun
     valueNet = ValueNetwork(train_data["word_to_idx"]).to(device)
 
     if not usePretrained:
-        train_reward_network(train_data,network_paths)
-        train_policy_network(train_data,network_paths)
-        train_value_network(train_data,network_paths)
+        train_reward_network(train_data,network_paths,plot_dir)
+        train_policy_network(train_data,network_paths,plot_dir)
+        train_value_network(train_data,network_paths,plot_dir)
         
     
     rewardNet.load_state_dict(torch.load(network_paths["reward_network"]))
