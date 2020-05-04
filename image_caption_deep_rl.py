@@ -111,7 +111,7 @@ def main(args):
     else:
         print_green(f'[Info] Training A2C Network')
         a2cNetwork = train_a2c_network(train_data=data, save_paths=save_paths, network_paths=network_paths, \
-                        plot_dir=LOG_DIR, epoch_count=args.epochs, episodes=args.episodes, usePretrained=args.pretrained, plot_freq=args.plot) 
+                        plot_dir=LOG_DIR, epoch_count=args.epochs, episodes=args.episodes, usePretrained=not args.retrain, plot_freq=args.plot) 
         print_green(f'[Info] A2C Network trained')
 
     print_green(f'[Info] Testing A2C Network')
@@ -138,9 +138,9 @@ if __name__ == "__main__":
     parser.add_argument('--test_size', type=int, help='Size of the test set to use', default=40504)
     parser.add_argument('--epochs', type=int, help='Number of Epochs to use for Training the A2C Network', default=100)
     parser.add_argument('--episodes', type=int, help='Number of Episodes to use for Training the A2C Network', default=10000)
-    parser.add_argument('--pretrained', type=bool, help='Number of Episodes to use for Training the A2C Network', default=True)
+    parser.add_argument('--retrain', action='store_true', help='Whether to retrain value, policy and reward networks', default=False)
     parser.add_argument('--test_model', type=str, help='Test a pretrained advantage actor critic model', default="")
-    parser.add_argument('--postprocess', type=bool, help='Post process data to download images from the validation cycle', default=True)
+    parser.add_argument('--postprocess', action='store_true', help='Post process data to download images from the validation cycle', default=False)
     parser.add_argument('--plot', type=int, help='records the data for tensorboard plots after this many episodes', default=10)
         
     args = parser.parse_args()
