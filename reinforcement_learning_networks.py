@@ -44,14 +44,14 @@ def GenerateCaptionsLI(features, captions, policyNet, valueNet, beamSize=5, most
         next_candidates = []
         for c in range(len(candidates)):
             output = policyNet(features, candidates[c][0])
-            probs, words = torch.topk(output[:, -1:, :], beamSize)
+            probs, words = torch.topk(output[:,-1:,:], beamSize)
             for i in range(beamSize):
                 cap = torch.cat((candidates[c][0], words[:, :, i]), axis=1)
                 value = valueNet(features.squeeze(0), cap).detach()
-                score_delta = 0.6*value + 0.4*torch.log(probs[:,:, i])
+                score_delta = 0.6*value + 0.4*torch.log(probs[:,:,i])
                 score = candidates[c][1] - score_delta
                 next_candidates.append((cap, score))
-        ordered_candidates = sorted(next_candidates, key=lambda tup:tup[1].sum())
+        ordered_candidates = sorted(next_candidates, key=lambda tup:tup[1].mean())
         candidates = ordered_candidates[:beamSize]
     
     if most_likely == True:
