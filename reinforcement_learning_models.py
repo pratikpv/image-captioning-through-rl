@@ -1,7 +1,7 @@
 import time
 import random
 import torch.optim as optim
-
+import os
 from tqdm import tqdm
 from utility_functions import *
 from reinforcement_learning_networks import *
@@ -131,9 +131,9 @@ def train_reward_network(train_data, network_paths, batch_size=50, epochs=50000)
     return rewardNetwork
 
 
-def train_a2c_network(train_data, save_paths, network_paths, epoch_count=10, episodes=100,usePretrained=True,plot_freq=10):
+def train_a2c_network(train_data, save_paths, network_paths, plot_dir,epoch_count=10, episodes=100,usePretrained=True,plot_freq=10):
     
-    a2c_train_writer = SummaryWriter()
+    a2c_train_writer = SummaryWriter(log_dir=os.path.join(plot_dir,'runs'))
 
     model_save_path = save_paths["model_path"]
     results_save_path = save_paths["results_path"]

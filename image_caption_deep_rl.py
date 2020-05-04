@@ -85,11 +85,11 @@ def setup():
         "value_network": "models/valueNetwork.pt",
     }
 
-    return save_paths, image_caption_data, network_paths
+    return save_paths, image_caption_data, network_paths,LOG_DIR
 
 
 def main(args):
-    save_paths, image_caption_data, network_paths = setup()
+    save_paths, image_caption_data, network_paths,LOG_DIR = setup()
 
     max_train = None if args.training_size == 0 else args.training_size  # set None for whole training dataset
     max_train_str = '' if max_train == None else str(max_train)
@@ -100,7 +100,7 @@ def main(args):
     print_green(f'[Info] Training A2C Network')
     with torch.autograd.set_detect_anomaly(True):
         a2cNetwork = train_a2c_network(train_data=data, save_paths=save_paths, network_paths=network_paths, \
-                        epoch_count=args.epochs, episodes=args.episodes,usePretrained=args.pretrained,plot_freq=args.plot)
+                        plot_dir = LOG_DIR,epoch_count=args.epochs, episodes=args.episodes,usePretrained=args.pretrained,plot_freq=args.plot)
                         # set the flag usePretrained to use the pretrained models. It is true by default.
     print_green(f'[Info] A2C Network trained')
 
