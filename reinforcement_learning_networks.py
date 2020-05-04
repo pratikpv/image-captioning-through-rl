@@ -34,14 +34,14 @@ def GenerateCaptions(features, captions, model):
         gen_caps = torch.cat((gen_caps, output[:, -1:, :].argmax(axis=2)), axis=1)
     return gen_caps
 
-def GenerateCaptionsLI(features,captions,model,valueNet,beamsize=5):
+def GenerateCaptionsLI(features, captions, policyNet, valueNet, beamsize=5):
     features = torch.tensor(features, device=device).float().unsqueeze(0)
     gen_caps = torch.tensor(captions[:, 0:1], device=device).long()
     candidates = [(gen_caps, 0)]
     for t in range(MAX_SEQ_LEN-1):
         next_candidates = []
         for c in range(len(candidates)):
-            output = model(features, candidates[c][0])
+            output = policyNet(features, candidates[c][0])
             probs, words = torch.topk(output[:, -1:, :], beamsize)
             for i in range(beamsize):
                 cap = torch.cat((candidates[c][0], words[:, :, i]), axis=1)
