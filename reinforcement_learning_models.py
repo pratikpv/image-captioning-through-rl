@@ -83,7 +83,7 @@ def train_policy_network(train_data, network_paths, plot_dir, batch_size=100, ep
     if pretrained:
         policyNetwork.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))  
     
-    bestLoss = 1.0
+    bestLoss = 10000
     print(f'[Info] Training Policy Network\n')
     for epoch in range(epochs):
         captions, features, _ = sample_coco_minibatch(train_data, batch_size=batch_size, split='train')
