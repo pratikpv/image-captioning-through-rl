@@ -61,7 +61,7 @@ def setup(base_path=None):
         print_green(f"[Info] Working on: {device}, device_name: {torch.cuda.get_device_name(0)} ")
     else:
         print_green(f"[Info] Working on: {device}")
-
+    
     if base_path is not None:
         LOG_DIR = base_path
     else:
@@ -104,7 +104,7 @@ def main(args):
     data = load_data(base_dir=BASE_DIR, max_train=max_train, print_keys=True)
     print_green(f'[Info] COCO dataset loaded')
 
-
+    
     if os.path.isfile(args.test_model) and os.path.split(args.test_model)[1] == "a2cNetwork.pt":
         print_green(f'[Info] Loading A2C Network')
         a2cNetwork = load_a2c_models(args.test_model, data, network_paths)
@@ -114,12 +114,12 @@ def main(args):
         with torch.autograd.set_detect_anomaly(True):
             if args.curriculum:
                 a2cNetwork = train_a2c_network_curriculum(train_data=data, save_paths=save_paths, network_paths=network_paths, \
-                        plot_dir = LOG_DIR,curriculum=[2,4,6,8,10],epoch_count=args.epochs, episodes=args.episodes,usePretrained=args.pretrained,plot_freq=args.plot)
+                            plot_dir = LOG_DIR,curriculum=[2,4,6,8,10],epoch_count=args.epochs, episodes=args.episodes,usePretrained=args.pretrained,plot_freq=args.plot)
             else:
                 a2cNetwork = train_a2c_network(train_data=data, save_paths=save_paths, network_paths=network_paths, \
-                        plot_dir = LOG_DIR,epoch_count=args.epochs, episodes=args.episodes,usePretrained=args.pretrained,plot_freq=args.plot)
+                            plot_dir = LOG_DIR,epoch_count=args.epochs, episodes=args.episodes,usePretrained=args.pretrained,plot_freq=args.plot)
                         # set the flag usePretrained to use the pretrained models. It is true by default.
-        print_green(f'[Info] A2C Network trained')
+            print_green(f'[Info] A2C Network trained')
 
 
     print_green(f'[Info] Testing A2C Network')
