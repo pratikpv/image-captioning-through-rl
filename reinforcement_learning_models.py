@@ -357,7 +357,7 @@ def train_a2c_network_curriculum(train_data, save_paths, network_paths, plot_dir
     return a2cNetwork
 
 
-def test_a2c_network(a2cNetwork, data, image_caption_data, data_size, validation_batch_size=100):
+def test_a2c_network(a2cNetwork, test_data, image_caption_data, data_size, validation_batch_size=100):
 
     a2c_test_writer = SummaryWriter()
     a2cNetwork.valueNet.train(False)
