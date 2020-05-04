@@ -264,25 +264,26 @@ def test_a2c_network(a2cNetwork, test_data, image_caption_data, data_size, valid
         features_real = features_real_all[i:i + validation_batch_size - 1]
         urls = urls_all[i:i + validation_batch_size]
 
-        captions_real_v = torch.tensor(captions_real, device=device).long()
-        features_real_v = torch.tensor(features_real, device=device).float()
+        for j in range(validation_batch_size - 1):
+            captions_real_v = torch.tensor(captions_real[j], device=device).long()
+            features_real_v = torch.tensor(features_real[j], device=device).float()
 
-        # value, probs = a2cNetwork(features_real_v, captions_real_v)
-        # probs = F.softmax(probs, dim=2)
-        # dist = probs.cpu().detach().numpy()[0, 0]
-        # action = np.random.choice(probs.shape[-1], p=dist)
-        # gen_cap = torch.from_numpy(np.array([action])).unsqueeze(0).to(device)
-        # gen_cap_str = decode_captions(gen_cap, idx_to_word=test_data["idx_to_word"])[0]
+            # value, probs = a2cNetwork(features_real_v, captions_real_v)
+            # probs = F.softmax(probs, dim=2)
+            # dist = probs.cpu().detach().numpy()[0, 0]
+            # action = np.random.choice(probs.shape[-1], p=dist)
+            # gen_cap = torch.from_numpy(np.array([action])).unsqueeze(0).to(device)
+            # gen_cap_str = decode_captions(gen_cap, idx_to_word=test_data["idx_to_word"])[0]
 
-        gen_cap_str = GenerateCaptionsLI(features_real, captions_real, a2cNetwork.policyNet, a2cNetwork.valueNet)
-        real_cap_str = decode_captions(captions_real, idx_to_word=test_data["idx_to_word"])[0]
+            gen_cap_str = GenerateCaptionsLI(features_real, captions_real, a2cNetwork.policyNet, a2cNetwork.valueNet, most_likely=True)[0]
+            real_cap_str = decode_captions(captions_real, idx_to_word=test_data["idx_to_word"])[0]
 
-        real_captions_file.write(real_cap_str + '\n')
-        generated_captions_file.write(gen_cap_str + '\n')
-        image_url_file.write(urls[0] + '\n')
+            real_captions_file.write(real_cap_str + '\n')
+            generated_captions_file.write(gen_cap_str + '\n')
+            image_url_file.write(urls[j][0] + '\n')
 
-        del captions_real_v, features_real_v
-        del gen_cap, value, probs, dist
+            # del captions_real_v, features_real_v
+            # del gen_cap, value, probs, dist
         torch.cuda.empty_cache()
         torch.cuda.synchronize()
 
