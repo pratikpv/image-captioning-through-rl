@@ -37,6 +37,9 @@ def train_value_network(train_data, network_paths, batch_size=50, epochs=50000):
         
         # Generate captions using the policy network
         captions = GenerateCaptions(features, captions, policyNet)
+
+        # Generate Captions using policy and value networks (Look Ahead Inference)
+        # captions = GenerateCaptionsLI(features, captions,policyNet,valueNetwork)
         
         # Compute the reward of the generated caption using reward network
         rewards = GetRewards(features, captions, rewardNet)
