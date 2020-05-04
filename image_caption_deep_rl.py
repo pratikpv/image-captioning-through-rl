@@ -51,7 +51,7 @@ def calculate_a2cNetwork_score(image_caption_data):
         f.write('\n' + '-' * 10 + ' results ' + '-' * 10 + '\n')
 
 
-def setup():
+def setup(base_path=None):
     global LOG_DIR, device
 
     # torch.backends.cudnn.enabled = False
@@ -62,9 +62,12 @@ def setup():
     else:
         print_green(f"[Info] Working on: {device}")
 
-    current_time_str = str(datetime.now().strftime("%d-%b-%Y_%H_%M_%S"))
-    LOG_DIR = os.path.join('logs', current_time_str)
-    os.makedirs(LOG_DIR)
+    if base_path is not None:
+        LOG_DIR = base_path
+    else:
+        current_time_str = str(datetime.now().strftime("%d-%b-%Y_%H_%M_%S"))
+        LOG_DIR = os.path.join('logs', current_time_str)
+        os.makedirs(LOG_DIR)
 
     save_paths = {
         "model_path": os.path.join(LOG_DIR, A2CNETWORK_WEIGHTS_FILE),
@@ -87,9 +90,13 @@ def setup():
 
     return save_paths, image_caption_data, network_paths,LOG_DIR
 
-
 def main(args):
-    save_paths, image_caption_data, network_paths,LOG_DIR = setup()
+
+    if os.path.isdir(os.path.split(args.test_model)[0]):
+        base_path = os.path.split(args.test_model)[0]
+    else:
+        base_path = None
+    save_paths, image_caption_data, network_paths = setup(base_path)
 
     max_train = None if args.training_size == 0 else args.training_size  # set None for whole training dataset
     max_train_str = '' if max_train == None else str(max_train)
@@ -97,15 +104,19 @@ def main(args):
     data = load_data(base_dir=BASE_DIR, max_train=max_train, print_keys=True)
     print_green(f'[Info] COCO dataset loaded')
 
-    print_green(f'[Info] Training A2C Network')
-    with torch.autograd.set_detect_anomaly(True):
+    if os.path.isfile(args.test_model) and os.path.split(args.test_model)[1] == "a2cNetwork.pt":
+        print_green(f'[Info] Loading A2C Network')
+        a2cNetwork = load_a2c_models(args.test_model, data, network_paths)
+        print_green(f'[Info] A2C Network loaded')
+    else:
+        print_green(f'[Info] Training A2C Network')
         a2cNetwork = train_a2c_network(train_data=data, save_paths=save_paths, network_paths=network_paths, \
-                        plot_dir = LOG_DIR,epoch_count=args.epochs, episodes=args.episodes,usePretrained=args.pretrained,plot_freq=args.plot)
-                        # set the flag usePretrained to use the pretrained models. It is true by default.
-    print_green(f'[Info] A2C Network trained')
+                        plot_dir=LOG_DIR, epoch_count=args.epochs, episodes=args.episodes, usePretrained=args.pretrained, plot_freq=args.plot) 
+        print_green(f'[Info] A2C Network trained')
 
     print_green(f'[Info] Testing A2C Network')
-    test_a2c_network(a2cNetwork, data=data, image_caption_data=image_caption_data, data_size=args.test_size)
+    test_a2c_network(a2cNetwork, test_data=data, \
+                            image_caption_data=image_caption_data, data_size=args.test_size)
     print_green(f'[Info] A2C Network Tested')
 
     print_green(f'[Info] A2C Network score - start')
@@ -123,20 +134,15 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate Image Captions through Deep Reinforcement Learning')
 
-    parser.add_argument('--training_size', type=int, help='Size of the training set to use (set 0 for the full set)',
-                        default=0)
+    parser.add_argument('--training_size', type=int, help='Size of the training set to use (set 0 for the full set)', default=0)
     parser.add_argument('--test_size', type=int, help='Size of the test set to use', default=40504)
     parser.add_argument('--epochs', type=int, help='Number of Epochs to use for Training the A2C Network', default=100)
-    parser.add_argument('--episodes', type=int, help='Number of Episodes to use for Training the A2C Network',
-                        default=10000)
-    parser.add_argument('--pretrained', type=int, help='Flag to switch between using pretrained models or training from scratch, use 0 to train from scratch',
-                        default=1)
-    parser.add_argument('--postprocess', type=bool,
-                        help='Post process data to download images from the validation cycle',
-                        default=True)
+    parser.add_argument('--episodes', type=int, help='Number of Episodes to use for Training the A2C Network', default=10000)
+    parser.add_argument('--pretrained', type=bool, help='Number of Episodes to use for Training the A2C Network', default=True)
+    parser.add_argument('--test_model', type=str, help='Test a pretrained advantage actor critic model', default="")
+    parser.add_argument('--postprocess', type=bool, help='Post process data to download images from the validation cycle', default=True)
     parser.add_argument('--plot', type=int, help='records the data for tensorboard plots after this many episodes', default=10)
         
-
     args = parser.parse_args()
 
     main(args)

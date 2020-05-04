@@ -7,3 +7,4 @@ logs/
 __pycache__/metrics.cpython-37.pyc
 rl_image_captioning.log
 runs/
+models/a2cNetwork.pt.filepart
