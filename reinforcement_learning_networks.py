@@ -34,25 +34,28 @@ def GenerateCaptions(features, captions, model):
         gen_caps = torch.cat((gen_caps, output[:, -1:, :].argmax(axis=2)), axis=1)
     return gen_caps
 
-def GenerateCaptionsLI(features, captions, policyNet, valueNet, beamsize=5, most_likely=False):
+def GenerateCaptionsLI(features, captions, policyNet, valueNet, beamSize=5, most_likely=False):
+
     features = torch.tensor(features, device=device).float().unsqueeze(0)
     gen_caps = torch.tensor(captions[:, 0:1], device=device).long()
+    
     candidates = [(gen_caps, 0)]
     for t in range(MAX_SEQ_LEN-1):
         next_candidates = []
         for c in range(len(candidates)):
             output = policyNet(features, candidates[c][0])
-            probs, words = torch.topk(output[:, -1:, :], beamsize)
-            for i in range(beamsize):
+            probs, words = torch.topk(output[:,-1:,:], beamSize)
+            for i in range(beamSize):
                 cap = torch.cat((candidates[c][0], words[:, :, i]), axis=1)
                 value = valueNet(features.squeeze(0), cap).detach()
-                score = candidates[c][1] - 0.6*value.item() -0.4*torch.log(probs[0, 0, i]).item()
+                score_delta = 0.6*value + 0.4*torch.log(probs[:,:,i])
+                score = candidates[c][1] - score_delta
                 next_candidates.append((cap, score))
-        ordered_candidates = sorted(next_candidates, key=lambda tup:tup[1])
-        candidates = ordered_candidates[:beamsize]
+        ordered_candidates = sorted(next_candidates, key=lambda tup:tup[1].mean())
+        candidates = ordered_candidates[:beamSize]
     
     if most_likely == True:
-        return candidates[0][0]
+        return candidates[0][0][0]
     return candidates
 
 

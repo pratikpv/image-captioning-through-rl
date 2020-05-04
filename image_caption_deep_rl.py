@@ -51,7 +51,7 @@ def calculate_a2cNetwork_score(image_caption_data):
         f.write('\n' + '-' * 10 + ' results ' + '-' * 10 + '\n')
 
 
-def setup():
+def setup(base_path=None):
     global LOG_DIR, device
 
     # torch.backends.cudnn.enabled = False
@@ -62,9 +62,12 @@ def setup():
     else:
         print_green(f"[Info] Working on: {device}")
 
-    current_time_str = str(datetime.now().strftime("%d-%b-%Y_%H_%M_%S"))
-    LOG_DIR = os.path.join('logs', current_time_str)
-    os.makedirs(LOG_DIR)
+    if base_path is not None:
+        LOG_DIR = base_path
+    else:
+        current_time_str = str(datetime.now().strftime("%d-%b-%Y_%H_%M_%S"))
+        LOG_DIR = os.path.join('logs', current_time_str)
+        os.makedirs(LOG_DIR)
 
     save_paths = {
         "model_path": os.path.join(LOG_DIR, A2CNETWORK_WEIGHTS_FILE),
@@ -93,7 +96,7 @@ def main(args):
         base_path = os.path.split(args.test_model)[0]
     else:
         base_path = None
-    save_paths, image_caption_data, network_paths = setup()
+    save_paths, image_caption_data, network_paths = setup(base_path)
 
     max_train = None if args.training_size == 0 else args.training_size  # set None for whole training dataset
     max_train_str = '' if max_train == None else str(max_train)
@@ -111,11 +114,10 @@ def main(args):
         with torch.autograd.set_detect_anomaly(True):
             if args.curriculum:
                 a2cNetwork = train_a2c_network_curriculum(train_data=data, save_paths=save_paths, network_paths=network_paths, \
-                            plot_dir = LOG_DIR,curriculum=[2,4,6,8,10],epoch_count=args.epochs, episodes=args.episodes,usePretrained=args.pretrained,plot_freq=args.plot)
+                            plot_dir=LOG_DIR, curriculum=[2,4,6,8,10], epoch_count=args.epochs, episodes=args.episodes, usePretrained=not args.retrain, plot_freq=args.plot)
             else:
                 a2cNetwork = train_a2c_network(train_data=data, save_paths=save_paths, network_paths=network_paths, \
-                            plot_dir = LOG_DIR,epoch_count=args.epochs, episodes=args.episodes,usePretrained=args.pretrained,plot_freq=args.plot)
-                        # set the flag usePretrained to use the pretrained models. It is true by default.
+                            plot_dir=LOG_DIR, epoch_count=args.epochs, episodes=args.episodes, usePretrained=not args.retrain, plot_freq=args.plot)
             print_green(f'[Info] A2C Network trained')
 
 
@@ -143,9 +145,9 @@ if __name__ == "__main__":
     parser.add_argument('--test_size', type=int, help='Size of the test set to use', default=40504)
     parser.add_argument('--epochs', type=int, help='Number of Epochs to use for Training the A2C Network', default=100)
     parser.add_argument('--episodes', type=int, help='Number of Episodes to use for Training the A2C Network', default=10000)
-    parser.add_argument('--pretrained', type=bool, help='Number of Episodes to use for Training the A2C Network', default=True)
+    parser.add_argument('--retrain', action='store_true', help='Whether to retrain value, policy and reward networks', default=False)
     parser.add_argument('--test_model', type=str, help='Test a pretrained advantage actor critic model', default="")
-    parser.add_argument('--postprocess', type=bool, help='Post process data to download images from the validation cycle', default=True)
+    parser.add_argument('--postprocess', action='store_true', help='Post process data to download images from the validation cycle', default=False)
     parser.add_argument('--plot', type=int, help='records the data for tensorboard plots after this many episodes', default=10)
 
     parser.add_argument('--curriculum',type=bool,help='Use curriculum training approach',default=False)
