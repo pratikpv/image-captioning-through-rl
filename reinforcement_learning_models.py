@@ -361,7 +361,7 @@ def train_a2c_network_curriculum(train_data, save_paths, network_paths, plot_dir
     return a2cNetwork
 
 
-def test_a2c_network(a2cNetwork, test_data, image_caption_data, data_size, validation_batch_size=100):
+def test_a2c_network(a2cNetwork, test_data, image_caption_data, data_size, validation_batch_size=128):
 
     with torch.no_grad():
         # a2c_test_writer = SummaryWriter()
@@ -384,19 +384,18 @@ def test_a2c_network(a2cNetwork, test_data, image_caption_data, data_size, valid
             features_real = features_real_all[i:i + validation_batch_size - 1]
             urls = urls_all[i:i + validation_batch_size - 1]
 
-            for j in range(validation_batch_size - 1):
-                captions_real_v = captions_real[j:j+1]
-                features_real_v = features_real[j:j+1]
+            captions_real_v = captions_real
+            features_real_v = features_real
 
-                gen_cap = GenerateCaptionsLI(features_real_v, captions_real_v, a2cNetwork.policyNet, a2cNetwork.valueNet, most_likely=True)
-                gen_cap_str = decode_captions(gen_cap, idx_to_word=test_data["idx_to_word"])
-                real_cap_str = decode_captions(captions_real[j], idx_to_word=test_data["idx_to_word"])
+            gen_cap = GenerateCaptionsLI(features_real_v, captions_real_v, a2cNetwork.policyNet, a2cNetwork.valueNet, most_likely=True)
+            gen_cap_str = decode_captions(gen_cap, idx_to_word=test_data["idx_to_word"])
+            real_cap_str = decode_captions(captions_real, idx_to_word=test_data["idx_to_word"])
 
-                real_captions_file.write(real_cap_str + '\n')
-                generated_captions_file.write(gen_cap_str + '\n')
-                image_url_file.write(urls[j] + '\n')
+            real_captions_file.write("\n".join(real_cap_str))
+            generated_captions_file.write("\n".join(gen_cap_str))
+            image_url_file.write("\n".join(urls))
 
-                a2cNetwork.valueNet.valrnn.init_hidden()
+            a2cNetwork.valueNet.valrnn.init_hidden()
 
         real_captions_file.close()
         generated_captions_file.close()
