@@ -1,15 +1,17 @@
 import time
 import random
 import torch.optim as optim
-
+import os
 from tqdm import tqdm
 from utility_functions import *
 from reinforcement_learning_networks import *
 from torch.utils.tensorboard import SummaryWriter
 
 
-def train_value_network(train_data, network_paths, batch_size=50, epochs=50000):
-    value_writer = SummaryWriter()
+def train_value_network(train_data, network_paths,plot_dir, batch_size=50, epochs=50000):
+
+    value_writer = SummaryWriter(log_dir = os.path.join(plot_dir,'runs'))
+
     rewardNet = RewardNetwork(train_data["word_to_idx"]).to(device)
     rewardNet.load_state_dict(torch.load(network_paths["reward_network"]))
     for param in rewardNet.parameters():
@@ -54,9 +56,11 @@ def train_value_network(train_data, network_paths, batch_size=50, epochs=50000):
         if loss.item() < bestLoss:
             bestLoss = loss.item()
             torch.save(valueNetwork.state_dict(), network_paths["value_network"])
-            value_writer.add_scalar('Value Network',loss,epoch)
+            
             print("epoch:", epoch, "loss:", loss.item())
-        
+
+        value_writer.add_scalar('Value Network',loss,epoch)
+
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -68,12 +72,14 @@ def train_value_network(train_data, network_paths, batch_size=50, epochs=50000):
     return valueNetwork
 
 
-def train_policy_network(train_data, network_paths, batch_size=100, epochs=100000, pretrained=False):
+def train_policy_network(train_data, network_paths,plot_dir, batch_size=100, epochs=100000, pretrained=False):
 
     policyNetwork = PolicyNetwork(train_data["word_to_idx"]).to(device)
     criterion = nn.CrossEntropyLoss().to(device)
     optimizer = optim.Adam(policyNetwork.parameters(), lr=0.0001)
-    policy_writer = SummaryWriter()
+
+    policy_writer = SummaryWriter(log_dir = os.path.join(plot_dir,'runs'))
+
     if pretrained:
         policyNetwork.load_state_dict(torch.load(network_paths["policy_network"]))  
     
@@ -94,17 +100,19 @@ def train_policy_network(train_data, network_paths, batch_size=100, epochs=10000
         if loss.item() < bestLoss:
             bestLoss = loss.item()
             torch.save(policyNetwork.state_dict(), network_paths["policy_network"])
-            policy_writer.add_scalar('Policy Network',loss,epoch)
-            print("epoch:", epoch, "loss:", loss.item())
             
+            print("epoch:", epoch, "loss:", loss.item())
+
+        policy_writer.add_scalar('Policy Network',loss,epoch)
+
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
 
-def train_reward_network(train_data, network_paths, batch_size=50, epochs=50000):
+def train_reward_network(train_data, network_paths,plot_dir, batch_size=50, epochs=50000):
 
-    reward_writer = SummaryWriter()
+    reward_writer = SummaryWriter(log_dir = os.path.join(plot_dir,'runs'))
     rewardNetwork = RewardNetwork(train_data["word_to_idx"]).to(device)
     optimizer = optim.Adam(rewardNetwork.parameters(), lr=0.001)  
 
@@ -120,8 +128,10 @@ def train_reward_network(train_data, network_paths, batch_size=50, epochs=50000)
         if loss.item() < bestLoss:
             bestLoss = loss.item()
             torch.save(rewardNetwork.state_dict(), network_paths["reward_network"])
-            reward_writer.add_scalar('Reward Network',loss,epoch)
+            
             print("epoch:", epoch, "loss:", loss.item())
+
+        reward_writer.add_scalar('Reward Network',loss,epoch)
         
         optimizer.zero_grad()
         loss.backward()
@@ -131,9 +141,9 @@ def train_reward_network(train_data, network_paths, batch_size=50, epochs=50000)
     return rewardNetwork
 
 
-def train_a2c_network(train_data, save_paths, network_paths, epoch_count=10, episodes=100, usePretrained=True, plot_freq=10):
+def train_a2c_network(train_data, save_paths, network_paths, plot_dir, epoch_count=10, episodes=100, usePretrained=True, plot_freq=10):
     
-    a2c_train_writer = SummaryWriter()
+    a2c_train_writer = SummaryWriter(log_dir=os.path.join(plot_dir,'runs'))
 
     model_save_path = save_paths["model_path"]
     results_save_path = save_paths["results_path"]

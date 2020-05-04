@@ -88,7 +88,7 @@ def setup(base_path=None):
         "value_network": "models/valueNetwork.pt",
     }
 
-    return save_paths, image_caption_data, network_paths
+    return save_paths, image_caption_data, network_paths,LOG_DIR
 
 def main(args):
 
@@ -111,7 +111,7 @@ def main(args):
     else:
         print_green(f'[Info] Training A2C Network')
         a2cNetwork = train_a2c_network(train_data=data, save_paths=save_paths, network_paths=network_paths, \
-                        epoch_count=args.epochs, episodes=args.episodes, usePretrained=args.pretrained, plot_freq=args.plot) 
+                        plot_dir=LOG_DIR, epoch_count=args.epochs, episodes=args.episodes, usePretrained=args.pretrained, plot_freq=args.plot) 
         print_green(f'[Info] A2C Network trained')
 
     print_green(f'[Info] Testing A2C Network')
