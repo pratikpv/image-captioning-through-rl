@@ -13,13 +13,13 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=50, epoc
     value_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
 
     rewardNet = RewardNetwork(train_data["word_to_idx"]).to(device)
-    rewardNet.load_state_dict(torch.load(network_paths["reward_network"]))
+    rewardNet.load_state_dict(torch.load(network_paths["reward_network"], map_location=device))
     for param in rewardNet.parameters():
         param.require_grad = False
     print(rewardNet)
 
     policyNet = PolicyNetwork(train_data["word_to_idx"]).to(device)
-    policyNet.load_state_dict(torch.load(network_paths["policy_network"]))
+    policyNet.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
     for param in policyNet.parameters():
         param.require_grad = False
     print(policyNet)
@@ -81,7 +81,7 @@ def train_policy_network(train_data, network_paths, plot_dir, batch_size=100, ep
     policy_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
 
     if pretrained:
-        policyNetwork.load_state_dict(torch.load(network_paths["policy_network"]))  
+        policyNetwork.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))  
     
     bestLoss = 1.0
     print(f'[Info] Training Policy Network\n')
@@ -153,9 +153,9 @@ def train_a2c_network(train_data, save_paths, network_paths, plot_dir, epoch_cou
         policyNet = PolicyNetwork(train_data["word_to_idx"]).to(device)
         valueNet = ValueNetwork(train_data["word_to_idx"]).to(device)
 
-        rewardNet.load_state_dict(torch.load(network_paths["reward_network"]))
-        policyNet.load_state_dict(torch.load(network_paths["policy_network"]))
-        valueNet.load_state_dict(torch.load(network_paths["value_network"]))
+        rewardNet.load_state_dict(torch.load(network_paths["reward_network"], map_location=device))
+        policyNet.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
+        valueNet.load_state_dict(torch.load(network_paths["value_network"], map_location=device))
 
     else:
         rewardNet = train_reward_network(train_data, network_paths)
@@ -225,7 +225,7 @@ def train_a2c_network(train_data, save_paths, network_paths, plot_dir, epoch_cou
                 # print_garbage_collection()
                 episode_t = time.time()
 
-                ## Summary Writer
+            ## Summary Writer
             if episode % plot_freq == 0:
                 a2c_train_writer.add_scalar('A2C Network',episodicAvgLoss,episode)
         
@@ -359,7 +359,7 @@ def train_a2c_network_curriculum(train_data, save_paths, network_paths, plot_dir
 
 def test_a2c_network(a2cNetwork, data, image_caption_data, data_size, validation_batch_size=100):
 
-    # a2c_test_writer = SummaryWriter()
+    a2c_test_writer = SummaryWriter()
     a2cNetwork.train(False)
 
     real_captions_filename = image_caption_data["real_captions_path"]
@@ -370,7 +370,7 @@ def test_a2c_network(a2cNetwork, data, image_caption_data, data_size, validation
     generated_captions_file = open(generated_captions_filename, "a")
     image_url_file = open(image_url_filename, "a")
 
-    captions_real_all, features_real_all, urls_all = sample_coco_minibatch(data, batch_size=data_size, split='val')
+    captions_real_all, features_real_all, urls_all = sample_coco_minibatch(test_data, batch_size=data_size, split='val')
     val_captions_lens = len(captions_real_all)
     loop_count = val_captions_lens // validation_batch_size
 
@@ -379,25 +379,29 @@ def test_a2c_network(a2cNetwork, data, image_caption_data, data_size, validation
         features_real = features_real_all[i:i + validation_batch_size - 1]
         urls = urls_all[i:i + validation_batch_size]
 
-        captions_real_v = torch.tensor(captions_real, device=device).long()
-        features_real_v = torch.tensor(features_real, device=device).float()
+        for j in range(validation_batch_size - 1):
+            captions_real_v = captions_real[j:j+1]
+            features_real_v = features_real[j:j+1]
 
-        value, probs = a2cNetwork(features_real_v, captions_real_v)
-        probs = F.softmax(probs, dim=2)
-        dist = probs.cpu().detach().numpy()[0, 0]
-        action = np.random.choice(probs.shape[-1], p=dist)
-        gen_cap = torch.from_numpy(np.array([action])).unsqueeze(0).to(device)
-        gen_cap_str = decode_captions(gen_cap, idx_to_word=data["idx_to_word"])[0]
-        real_cap_str = decode_captions(captions_real, idx_to_word=data["idx_to_word"])[0]
+            # value, probs = a2cNetwork(features_real_v, captions_real_v)
+            # probs = F.softmax(probs, dim=2)
+            # dist = probs.cpu().detach().numpy()[0, 0]
+            # action = np.random.choice(probs.shape[-1], p=dist)
+            # gen_cap = torch.from_numpy(np.array([action])).unsqueeze(0).to(device)
+            # gen_cap_str = decode_captions(gen_cap, idx_to_word=test_data["idx_to_word"])[0]
 
-        real_captions_file.write(real_cap_str + '\n')
-        generated_captions_file.write(gen_cap_str + '\n')
-        image_url_file.write(urls[0] + '\n')
+            gen_cap = GenerateCaptionsLI(features_real_v, captions_real_v, a2cNetwork.policyNet, a2cNetwork.valueNet, most_likely=True)[0]
+            gen_cap_str = decode_captions(gen_cap, idx_to_word=test_data["idx_to_word"])
+            real_cap_str = decode_captions(captions_real[j], idx_to_word=test_data["idx_to_word"])
 
-        del captions_real_v, features_real_v
-        del gen_cap, value, probs, dist
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
+            real_captions_file.write(real_cap_str + '\n')
+            generated_captions_file.write(gen_cap_str + '\n')
+            image_url_file.write(urls[j] + '\n')
+
+            # del captions_real_v, features_real_v
+            # del gen_cap, value, probs, dist
+        # torch.cuda.empty_cache()
+        # torch.cuda.synchronize()
 
     real_captions_file.close()
     generated_captions_file.close()
@@ -407,14 +411,14 @@ def test_a2c_network(a2cNetwork, data, image_caption_data, data_size, validation
 def load_a2c_models(model_path, train_data, network_paths):
     
     policyNet = PolicyNetwork(train_data["word_to_idx"]).to(device)
-    policyNet.load_state_dict(torch.load(network_paths["policy_network"]))
+    policyNet.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
     policyNet.train(mode=False)
 
     valueNet = ValueNetwork(train_data["word_to_idx"]).to(device)
-    valueNet.load_state_dict(torch.load(network_paths["value_network"]))
+    valueNet.load_state_dict(torch.load(network_paths["value_network"], map_location=device))
     valueNet.train(mode=False)
 
     a2cNetwork = AdvantageActorCriticNetwork(valueNet, policyNet).to(device)
-    a2cNetwork.load_state_dict(torch.load(model_path))
+    a2cNetwork.load_state_dict(torch.load(model_path, map_location=device))
 
     return a2cNetwork
