@@ -128,22 +128,21 @@ def train_a2c_network(train_data, save_paths, network_paths, epoch_count=10, epi
     model_save_path = save_paths["model_path"]
     results_save_path = save_paths["results_path"]
 
-    rewardNet = RewardNetwork(train_data["word_to_idx"]).to(device)
-    policyNet = PolicyNetwork(train_data["word_to_idx"]).to(device)
-    valueNet = ValueNetwork(train_data["word_to_idx"]).to(device)
+    if usePretrained:
+        rewardNet = RewardNetwork(train_data["word_to_idx"]).to(device)
+        policyNet = PolicyNetwork(train_data["word_to_idx"]).to(device)
+        valueNet = ValueNetwork(train_data["word_to_idx"]).to(device)
 
-    if not usePretrained:
-        train_reward_network(train_data, network_paths)
-        train_policy_network(train_data, network_paths)
-        train_value_network(train_data, network_paths)
-        
-    rewardNet.load_state_dict(torch.load(network_paths["reward_network"]))
-    policyNet.load_state_dict(torch.load(network_paths["policy_network"]))
-    valueNet.load_state_dict(torch.load(network_paths["value_network"]))
+        rewardNet.load_state_dict(torch.load(network_paths["reward_network"]))
+        policyNet.load_state_dict(torch.load(network_paths["policy_network"]))
+        valueNet.load_state_dict(torch.load(network_paths["value_network"]))
 
-    rewardNet.train(mode=False)
-    policyNet.train(mode=False)
-    valueNet.train(mode=False)
+    else:
+        rewardNet = train_reward_network(train_data, network_paths)
+        policyNet = train_policy_network(train_data, network_paths)
+        valueNet = train_value_network(train_data, network_paths)
+
+    # rewardNet.train(mode=False)
 
     a2cNetwork = AdvantageActorCriticNetwork(valueNet, policyNet).to(device)
     a2cNetwork.train(True)
@@ -160,8 +159,6 @@ def train_a2c_network(train_data, save_paths, network_paths, epoch_count=10, epi
         features = torch.tensor(features, device=device).float()
         captions = torch.tensor(captions, device=device).long()
 
-        # decoded = decode_captions(captions, train_data['idx_to_word'])
-        
         episode_t = time.time()
         for episode in range(episodes):
 
@@ -257,8 +254,6 @@ def test_a2c_network(a2cNetwork, test_data, image_caption_data, data_size, valid
         generated_captions_file.write(gen_cap_str + '\n')
         image_url_file.write(urls[0] + '\n')
 
-        # captions_real_v = captions_real_v.to('cpu')
-        # features_real_v = features_real_v.to('cpu')
         del captions_real_v, features_real_v
         del gen_cap, value, probs, dist
         torch.cuda.empty_cache()
