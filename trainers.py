@@ -70,7 +70,7 @@ def GetRewards(features, captions, reward_network):
     return rewards
 
 
-def train_value_network(train_data, network_paths, plot_dir, batch_size=1024, epochs=50000):
+def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epochs=50000):
 
     value_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
 
@@ -131,7 +131,7 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=1024, ep
     return valueNetwork
 
 
-def train_policy_network(train_data, network_paths, plot_dir, batch_size=1024, epochs=50000):
+def train_policy_network(train_data, network_paths, plot_dir, batch_size=256, epochs=100000):
 
     policyNetwork = PolicyNetwork(train_data["word_to_idx"]).to(device)
     criterion = nn.CrossEntropyLoss().to(device)
@@ -166,7 +166,7 @@ def train_policy_network(train_data, network_paths, plot_dir, batch_size=1024, e
         optimizer.step()
 
 
-def train_reward_network(train_data, network_paths, plot_dir, batch_size=1024, epochs=50000):
+def train_reward_network(train_data, network_paths, plot_dir, batch_size=256, epochs=50000):
 
     reward_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
     rewardNetwork = RewardNetwork(train_data["word_to_idx"]).to(device)
