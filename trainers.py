@@ -86,10 +86,10 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epo
         param.require_grad = False
     print(policy_network)
 
-    valueNetwork = ValueNetwork(train_data["word_to_idx"]).to(device)
+    value_network = ValueNetwork(train_data["word_to_idx"]).to(device)
     criterion = nn.MSELoss().to(device)
-    optimizer = optim.Adam(valueNetwork.parameters(), lr=0.0001)
-    valueNetwork.train(mode=True)
+    optimizer = optim.Adam(value_network.parameters(), lr=0.0001)
+    value_network.train(mode=True)
 
     bestLoss = 10000
     max_seq_len = 17
@@ -107,14 +107,14 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epo
         
         # Compute the value of a random state in the generation process
     #     print(features.shape, captions[:, :random.randint(1, 17)].shape)
-        values = valueNetwork(features, captions[:, :random.randint(1, max_seq_len)])
+        values = value_network(features, captions[:, :random.randint(1, max_seq_len)])
         
         # Compute the loss for the value and the reward
         loss = criterion(values, rewards)
 
         if loss.item() < bestLoss:
             bestLoss = loss.item()
-            torch.save(valueNetwork.state_dict(), network_paths["value_network"])
+            torch.save(value_network.state_dict(), network_paths["value_network"])
 
             print("epoch:", epoch, "loss:", loss.item())
 
@@ -124,18 +124,18 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epo
         loss.backward()
         optimizer.step()
 
-        valueNetwork.valrnn.hidden_cell[0].detach_()
-        valueNetwork.valrnn.hidden_cell[1].detach_()
+        value_network.valrnn.hidden_cell[0].detach_()
+        value_network.valrnn.hidden_cell[1].detach_()
         reward_network.rewrnn.hidden_cell.detach_()
     
-    return valueNetwork
+    return value_network
 
 
 def train_policy_network(train_data, network_paths, plot_dir, batch_size=256, epochs=100000):
 
-    policyNetwork = PolicyNetwork(train_data["word_to_idx"]).to(device)
+    policy_network = PolicyNetwork(train_data["word_to_idx"]).to(device)
     criterion = nn.CrossEntropyLoss().to(device)
-    optimizer = optim.Adam(policyNetwork.parameters(), lr=0.0001)
+    optimizer = optim.Adam(policy_network.parameters(), lr=0.0001)
 
     policy_writer = SummaryWriter(log_dir=os.path.join(plot_dir, 'runs'))
 
@@ -146,7 +146,7 @@ def train_policy_network(train_data, network_paths, plot_dir, batch_size=256, ep
         features = torch.tensor(features, device=device).float().unsqueeze(0)
         captions_in = torch.tensor(captions[:, :-1], device=device).long()
         captions_out = torch.tensor(captions[:, 1:], device=device).long()
-        output = policyNetwork(features, captions_in)
+        output = policy_network(features, captions_in)
 
         loss = 0
         for i in range(batch_size):
@@ -155,7 +155,7 @@ def train_policy_network(train_data, network_paths, plot_dir, batch_size=256, ep
 
         if loss.item() < bestLoss:
             bestLoss = loss.item()
-            torch.save(policyNetwork.state_dict(), network_paths["policy_network"])
+            torch.save(policy_network.state_dict(), network_paths["policy_network"])
 
             print("epoch:", epoch, "loss:", loss.item())
 
@@ -169,8 +169,8 @@ def train_policy_network(train_data, network_paths, plot_dir, batch_size=256, ep
 def train_reward_network(train_data, network_paths, plot_dir, batch_size=256, epochs=50000):
     
     reward_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
-    rewardNetwork = RewardNetwork(train_data["word_to_idx"]).to(device)
-    optimizer = optim.Adam(rewardNetwork.parameters(), lr=0.001)
+    reward_network = RewardNetwork(train_data["word_to_idx"]).to(device)
+    optimizer = optim.Adam(reward_network.parameters(), lr=0.001)
 
     bestLoss = 10000
     print(f'[Info] Training Reward Network\n')
@@ -180,12 +180,12 @@ def train_reward_network(train_data, network_paths, plot_dir, batch_size=256, ep
         captions, features, _ = get_coco_batch(train_data, batch_size=batch_size, split='train')
         features = torch.tensor(features, device=device).float()
         captions = torch.tensor(captions, device=device).long()
-        ve, se = rewardNetwork(features, captions)
+        ve, se = reward_network(features, captions)
         loss = VisualSemanticEmbeddingLoss(ve, se)
 
         if loss.item() < bestLoss:
             bestLoss = loss.item()
-            torch.save(rewardNetwork.state_dict(), network_paths["reward_network"])
+            torch.save(reward_network.state_dict(), network_paths["reward_network"])
 
             print("epoch:", epoch, "loss:", loss.item())
 
@@ -194,9 +194,9 @@ def train_reward_network(train_data, network_paths, plot_dir, batch_size=256, ep
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        rewardNetwork.rewrnn.hidden_cell.detach_()
+        reward_network.rewrnn.hidden_cell.detach_()
 
-    return rewardNetwork
+    return reward_network
 
 
 def train_a2c_network(train_data, save_paths, network_paths, plot_dir, plot_freq, epoch_count, episodes, retrain_all=False, curriculum=None):
