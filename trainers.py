@@ -165,6 +165,8 @@ def train_policy_network(train_data, network_paths, plot_dir, batch_size=256, ep
         loss.backward()
         optimizer.step()
 
+    return policy_network
+
 
 def train_reward_network(train_data, network_paths, plot_dir, batch_size=256, epochs=50000):
     
@@ -319,6 +321,8 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, p
         print(f"[training] epoch:{epoch} episodicAvgLoss: {episodicAvgLoss}")
         reward_network.rewrnn.init_hidden()
         a2c_network.value_network.valrnn.init_hidden()
+
+    return a2c_network
 
 
 def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, plot_dir, plot_freq, episodes, epoch_count, curriculum):

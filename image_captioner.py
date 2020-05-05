@@ -72,10 +72,11 @@ def setup(args):
         "best_score_images_path": os.path.join(LOG_DIR, BEST_SCORE_IMAGES_PATH),
     }
 
+    MODEL_DIRECTORY = args.pretrained_path
     network_paths = {
-        "reward_network": os.path.join("models_pretrained", REWARD_NETWORK_WEIGHTS_FILE),
-        "policy_network": os.path.join("models_pretrained", POLICY_NETWORK_WEIGHTS_FILE),
-        "value_network": os.path.join("models_pretrained", VALUE_NETWORK_WEIGHTS_FILE),
+        "reward_network": os.path.join(MODEL_DIRECTORY, REWARD_NETWORK_WEIGHTS_FILE),
+        "policy_network": os.path.join(MODEL_DIRECTORY, POLICY_NETWORK_WEIGHTS_FILE),
+        "value_network": os.path.join(MODEL_DIRECTORY, VALUE_NETWORK_WEIGHTS_FILE),
     }
 
     return save_paths, image_caption_data, network_paths
@@ -130,13 +131,17 @@ if __name__ == "__main__":
 
     parser.add_argument('--training_size', type=int, help='Size of the training set to use (set 0 for the full set)', default=0)
     parser.add_argument('--test_size', type=int, help='Size of the test set to use', default=40504)
+
     parser.add_argument('--epochs', type=int, help='Number of Epochs to use for Training the A2C Network', default=100)
     parser.add_argument('--episodes', type=int, help='Number of Episodes to use for Training the A2C Network', default=10000)
-    parser.add_argument('--retrain', action='store_true', help='Whether to retrain value, policy and reward networks', default=False)
-    parser.add_argument('--test_model', type=str, help='Test a pretrained advantage actor critic model', default="")
-    parser.add_argument('--postprocess', action='store_true', help='Post process data to download images from the validation cycle', default=False)
     parser.add_argument('--plot', type=int, help='Records the data for tensorboard plots after this many episodes', default=10)
+
+    parser.add_argument('--retrain', action='store_true', help='Whether to retrain value, policy and reward networks', default=False)
+    parser.add_argument('--postprocess', action='store_true', help='Post process data to download images from the validation cycle', default=False)
     parser.add_argument('--curriculum', action='store_true', help='Use curriculum training approach',default=False)
+
+    parser.add_argument('--test_model', type=str, help='Test a pretrained advantage actor critic model', default="")
+    parser.add_argument('--pretrained_path', type=str, help='Location of pretrained model files', default='models_pretrained')
         
     args = parser.parse_args()
 
