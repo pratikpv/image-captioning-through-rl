@@ -26,15 +26,15 @@ def VisualSemanticEmbeddingLoss(visuals, semantics):
     
     return visloss + semloss
 
-def GenerateCaptions(features, captions, model):
+def GenerateCaptions(features, captions, policy_network):
     features = torch.tensor(features, device=device).float().unsqueeze(0)
     gen_caps = torch.tensor(captions[:, 0:1], device=device).long()
     for t in range(MAX_SEQ_LEN - 1):
-        output = model(features, gen_caps)
+        output = policy_network(features, gen_caps)
         gen_caps = torch.cat((gen_caps, output[:, -1:, :].argmax(axis=2)), axis=1)
     return gen_caps
 
-def GenerateCaptionsLI(features, captions, policyNet, valueNet, beamSize=5, most_likely=False):
+def GenerateCaptionsWithActorCriticLookAhead(features, captions, policy_network, value_network, beamSize=5, most_likely=False):
 
     features = torch.tensor(features, device=device).float().unsqueeze(0)
     gen_caps = torch.tensor(captions[:, 0:1], device=device).long()
@@ -43,11 +43,11 @@ def GenerateCaptionsLI(features, captions, policyNet, valueNet, beamSize=5, most
     for t in range(MAX_SEQ_LEN-1):
         next_candidates = []
         for c in range(len(candidates)):
-            output = policyNet(features, candidates[c][0])
+            output = policy_network(features, candidates[c][0])
             probs, words = torch.topk(output[:,-1:,:], beamSize)
             for i in range(beamSize):
                 cap = torch.cat((candidates[c][0], words[:, :, i]), axis=1)
-                value = valueNet(features.squeeze(0), cap).detach()
+                value = value_network(features.squeeze(0), cap).detach()
                 score_delta = 0.6*value + 0.4*torch.log(probs[:,:,i])
                 score = candidates[c][1] - score_delta
                 next_candidates.append((cap, score))
@@ -59,10 +59,12 @@ def GenerateCaptionsLI(features, captions, policyNet, valueNet, beamSize=5, most
     return candidates
 
 
-def GetRewards(features, captions, model):
-    visEmbeds, semEmbeds = model(features, captions)
+def GetRewards(features, captions, reward_network):
+
+    visEmbeds, semEmbeds = reward_network(features, captions)
     visEmbeds = F.normalize(visEmbeds, p=2, dim=1)
     semEmbeds = F.normalize(semEmbeds, p=2, dim=1)
+
     rewards = torch.sum(visEmbeds * semEmbeds, axis=1).unsqueeze(1)
     return rewards
 
@@ -172,16 +174,16 @@ class RewardNetwork(nn.Module):
 
 
 class AdvantageActorCriticNetwork(nn.Module):
-    def __init__(self, valueNet, policyNet):
+    def __init__(self, value_network, policy_network):
         super(AdvantageActorCriticNetwork, self).__init__()
 
-        self.valueNet = valueNet
-        self.policyNet = policyNet
+        self.value_network = value_network
+        self.policy_network = policy_network
 
     def forward(self, features, captions):
         # Get value from value network
-        values = self.valueNet(features, captions)
+        values = self.value_network(features, captions)
         # Get action probabilities from policy network
-        probs = self.policyNet(features.unsqueeze(0), captions)[:, -1:, :]
+        probs = self.policy_network(features.unsqueeze(0), captions)[:, -1:, :]
         return values, probs
 

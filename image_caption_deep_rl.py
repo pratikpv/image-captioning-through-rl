@@ -107,7 +107,7 @@ def main(args):
     
     if os.path.isfile(args.test_model) and os.path.split(args.test_model)[1] == "a2cNetwork.pt":
         print_green(f'[Info] Loading A2C Network')
-        a2cNetwork = load_a2c_models(args.test_model, data, network_paths)
+        a2c_network = load_a2c_models(args.test_model, data, network_paths)
         print_green(f'[Info] A2C Network loaded')
     else:
         print_green(f'[Info] Training A2C Network')
@@ -116,16 +116,16 @@ def main(args):
                 curriculum = CURRICILUM_LEVELS
             else:
                 curriculum = None
-            a2cNetwork = train_a2c_network(train_data=data, \
+            a2c_network = train_a2c_network(train_data=data, \
                             save_paths=save_paths, network_paths=network_paths, \
                                 plot_dir=LOG_DIR, plot_freq=args.plot, \
                                     epoch_count=args.epochs, episodes=args.episodes, \
-                                        usePretrained=not args.retrain, curriculum=curriculum)
+                                        retrain_all=args.retrain, curriculum=curriculum)
             print_green(f'[Info] A2C Network trained')
 
 
     print_green(f'[Info] Testing A2C Network')
-    test_a2c_network(a2cNetwork, test_data=data, \
+    test_a2c_network(a2c_network, test_data=data, \
                             image_caption_data=image_caption_data, data_size=args.test_size)
     print_green(f'[Info] A2C Network Tested')
 

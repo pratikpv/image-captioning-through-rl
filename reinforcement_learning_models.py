@@ -12,17 +12,17 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=50, epoc
 
     value_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
 
-    rewardNet = RewardNetwork(train_data["word_to_idx"]).to(device)
-    rewardNet.load_state_dict(torch.load(network_paths["reward_network"], map_location=device))
-    for param in rewardNet.parameters():
+    reward_network = RewardNetwork(train_data["word_to_idx"]).to(device)
+    reward_network.load_state_dict(torch.load(network_paths["reward_network"], map_location=device))
+    for param in reward_network.parameters():
         param.require_grad = False
-    print(rewardNet)
+    print(reward_network)
 
-    policyNet = PolicyNetwork(train_data["word_to_idx"]).to(device)
-    policyNet.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
-    for param in policyNet.parameters():
+    policy_network = PolicyNetwork(train_data["word_to_idx"]).to(device)
+    policy_network.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
+    for param in policy_network.parameters():
         param.require_grad = False
-    print(policyNet)
+    print(policy_network)
 
     valueNetwork = ValueNetwork(train_data["word_to_idx"]).to(device)
     criterion = nn.MSELoss().to(device)
@@ -38,17 +38,17 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=50, epoc
         features = torch.tensor(features, device=device).float()
         
         # Generate captions using the policy network
-        captions = GenerateCaptions(features, captions, policyNet)
+        captions = GenerateCaptions(features, captions, policy_network)
 
         # Generate Captions using policy and value networks (Look Ahead Inference)
-        # captions = GenerateCaptionsLI(features, captions, policyNet, valueNetwork)
+        # captions = GenerateCaptionsWithActorCriticLookAhead(features, captions, policy_network, valueNetwork)
         
         # Compute the reward of the generated caption using reward network
-        rewards = GetRewards(features, captions, rewardNet)
+        rewards = GetRewards(features, captions, reward_network)
         
         # Compute the value of a random state in the generation process
     #     print(features.shape, captions[:, :random.randint(1, 17)].shape)
-        values = valueNetwork(features, captions[:, :random.randint(1, 17)])
+        values = valueNetwork(features, captions[:, :random.randint(1, max_seq_len)])
         
         # Compute the loss for the value and the reward
         loss = criterion(values, rewards)
@@ -67,7 +67,7 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=50, epoc
         
         valueNetwork.valrnn.hidden_cell[0].detach_()
         valueNetwork.valrnn.hidden_cell[1].detach_()
-        rewardNet.rewrnn.hidden_cell.detach_()
+        reward_network.rewrnn.hidden_cell.detach_()
     
     return valueNetwork
 
@@ -80,9 +80,6 @@ def train_policy_network(train_data, network_paths, plot_dir, batch_size=100, ep
 
     policy_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
 
-    if pretrained:
-        policyNetwork.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))  
-    
     bestLoss = 10000
     print(f'[Info] Training Policy Network\n')
     for epoch in range(epochs):
@@ -141,47 +138,63 @@ def train_reward_network(train_data, network_paths, plot_dir, batch_size=50, epo
     return rewardNetwork
 
 
-def train_a2c_network(train_data, save_paths, network_paths, plot_dir, plot_freq, epoch_count, episodes, usePretrained=True, curriculum=None):
+def train_a2c_network(train_data, save_paths, network_paths, plot_dir, plot_freq, epoch_count, episodes, retrain_all=False, curriculum=None):
     
     model_save_path = save_paths["model_path"]
     results_save_path = save_paths["results_path"]
 
-    rewardNet = RewardNetwork(train_data["word_to_idx"]).to(device)
-    policyNet = PolicyNetwork(train_data["word_to_idx"]).to(device)
-    valueNet = ValueNetwork(train_data["word_to_idx"]).to(device)
+    reward_network = RewardNetwork(train_data["word_to_idx"]).to(device)
+    policy_network = PolicyNetwork(train_data["word_to_idx"]).to(device)
+    value_network = ValueNetwork(train_data["word_to_idx"]).to(device)
 
-    if usePretrained:
-        rewardNet.load_state_dict(torch.load(network_paths["reward_network"], map_location=device))
-        policyNet.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
-        valueNet.load_state_dict(torch.load(network_paths["value_network"], map_location=device))
+    if retrain_all:
+        reward_network = train_reward_network(train_data, network_paths, plot_dir)
+        policy_network = train_policy_network(train_data, network_paths, plot_dir)
+        value_network = train_value_network(train_data, network_paths, plot_dir)
+        print(f'[training] loaded all networks')
 
     else:
-        rewardNet = train_reward_network(train_data, network_paths, plot_dir)
-        policyNet = train_policy_network(train_data, network_paths, plot_dir)
-        valueNet = train_value_network(train_data, network_paths, plot_dir)
+        try:
+            reward_network.load_state_dict(torch.load(network_paths["reward_network"], map_location=device))
+            print(f'[training] loaded reward network')
+        except FileNotFoundError:
+            print(f'[training] reward network not found')
+            reward_network = train_reward_network(train_data, network_paths, plot_dir)
+        try:
+            policy_network.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
+            print(f'[training] loaded policy network')
+        except FileNotFoundError:
+            print(f'[training] policy network not found')
+            policy_network = train_policy_network(train_data, network_paths, plot_dir)
+        try:
+            value_network.load_state_dict(torch.load(network_paths["value_network"], map_location=device))
+            print(f'[training] loaded value network')
+        except FileNotFoundError:
+            print(f'[training] value network not found')
+            value_network = train_value_network(train_data, network_paths, plot_dir)
 
-    a2cNetwork = AdvantageActorCriticNetwork(valueNet, policyNet).to(device)
-    a2cNetwork.train(True)
-    optimizer = optim.Adam(a2cNetwork.parameters(), lr=0.0001)
+    a2c_network = AdvantageActorCriticNetwork(value_network, policy_network).to(device)
+    a2c_network.train(True)
+    optimizer = optim.Adam(a2c_network.parameters(), lr=0.0001)
 
     print(f'[training] train_data len = {len(train_data["train_captions"])}')
     print(f'[training] episodes = {episodes}')
     print(f'[training] epoch_count = {epoch_count}')
 
     if curriculum is None:
-        a2cNetwork = a2c_training(train_data, a2cNetwork, rewardNet, optimizer, plot_dir, plot_freq, episodes, epoch_count)
+        a2c_network = a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, plot_freq, episodes, epoch_count)
     else:
-        a2cNetwork = a2c_curriculum_training(train_data, a2cNetwork, rewardNet, optimizer, plot_dir, plot_freq, episodes, epoch_count, curriculum)
+        a2c_network = a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, plot_dir, plot_freq, episodes, epoch_count, curriculum)
 
-    torch.save(a2cNetwork.state_dict(), model_save_path)
+    torch.save(a2c_network.state_dict(), model_save_path)
     with open(results_save_path, 'a') as f:
         f.write('\n' + '-' * 10 + ' network ' + '-' * 10 + '\n')
-        f.write(str(a2cNetwork))
+        f.write(str(a2c_network))
         f.write('\n' + '-' * 10 + ' network ' + '-' * 10 + '\n')
 
-    return a2cNetwork
+    return a2c_network
 
-def a2c_training(train_data, a2cNetwork, rewardNet, optimizer, plot_dir, plot_freq, episodes, epoch_count):
+def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, plot_freq, episodes, epoch_count):
 
     a2c_train_writer = SummaryWriter(log_dir=os.path.join(plot_dir,'runs'))
 
@@ -198,7 +211,7 @@ def a2c_training(train_data, a2cNetwork, rewardNet, optimizer, plot_dir, plot_fr
             captions_in = captions[episode:episode + 1, :]
             features_in = features[episode:episode + 1]
 
-            values, probs = a2cNetwork(features_in, captions_in)
+            values, probs = a2c_network(features_in, captions_in)
 
             probs = F.softmax(probs, dim=2)
             dist = probs.cpu().detach().numpy()[0, 0]
@@ -212,7 +225,7 @@ def a2c_training(train_data, a2cNetwork, rewardNet, optimizer, plot_dir, plot_fr
 
             log_probs = torch.log(probs[0, 0, action])
 
-            rewards = GetRewards(features_in, captions_in, rewardNet)
+            rewards = GetRewards(features_in, captions_in, reward_network)
             rewards = rewards.cpu().detach().numpy()[0, 0]
 
             values = torch.FloatTensor([values]).to(device)
@@ -243,11 +256,11 @@ def a2c_training(train_data, a2cNetwork, rewardNet, optimizer, plot_dir, plot_fr
                 a2c_train_writer.add_scalar('A2C Network',episodicAvgLoss,episode)
         
         print(f"[training] epoch:{epoch} episodicAvgLoss: {episodicAvgLoss}")
-        rewardNet.rewrnn.init_hidden()
-        a2cNetwork.valueNet.valrnn.init_hidden()
+        reward_network.rewrnn.init_hidden()
+        a2c_network.value_network.valrnn.init_hidden()
 
 
-def a2c_curriculum_training(train_data, a2cNetwork, rewardNet, optimizer, plot_dir, plot_freq, episodes, epoch_count, curriculum):
+def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, plot_dir, plot_freq, episodes, epoch_count, curriculum):
 
     a2c_train_curriculum_writer = SummaryWriter(log_dir=os.path.join(plot_dir,'runs'))
 
@@ -275,7 +288,7 @@ def a2c_curriculum_training(train_data, a2cNetwork, rewardNet, optimizer, plot_d
 
                     for step in range(level):
                         
-                        value, probs = a2cNetwork(features_in, captions_in)
+                        value, probs = a2c_network(features_in, captions_in)
 
                         probs = F.softmax(probs, dim=2)
                         dist = probs.cpu().detach().numpy()[0, 0]
@@ -289,7 +302,7 @@ def a2c_curriculum_training(train_data, a2cNetwork, rewardNet, optimizer, plot_d
 
                         log_prob = torch.log(probs[0, 0, action])
 
-                        reward = GetRewards(features_in, captions_in, rewardNet)
+                        reward = GetRewards(features_in, captions_in, reward_network)
                         reward = reward.cpu().detach().numpy()[0, 0]
 
                         rewards.append(reward)
@@ -324,17 +337,17 @@ def a2c_curriculum_training(train_data, a2cNetwork, rewardNet, optimizer, plot_d
                     a2c_train_curriculum_writer.add_scalar('A2C Network Curriculum',episodicAvgLoss,episode)
             
             print(f"[training] epoch:{epoch} episodicAvgLoss: {episodicAvgLoss}")
-            rewardNet.rewrnn.init_hidden()
-            a2cNetwork.valueNet.valrnn.init_hidden()
+            reward_network.rewrnn.init_hidden()
+            a2c_network.value_network.valrnn.init_hidden()
 
-    return a2cNetwork
+    return a2c_network
 
 
-def test_a2c_network(a2cNetwork, test_data, image_caption_data, data_size, validation_batch_size=128):
+def test_a2c_network(a2c_network, test_data, image_caption_data, data_size, validation_batch_size=128):
 
     with torch.no_grad():
         # a2c_test_writer = SummaryWriter()
-        a2cNetwork.train(False)
+        a2c_network.train(False)
 
         real_captions_filename = image_caption_data["real_captions_path"]
         generated_captions_filename = image_caption_data["generated_captions_path"]
@@ -356,7 +369,7 @@ def test_a2c_network(a2cNetwork, test_data, image_caption_data, data_size, valid
             captions_real_v = captions_real
             features_real_v = features_real
 
-            gen_cap = GenerateCaptionsLI(features_real_v, captions_real_v, a2cNetwork.policyNet, a2cNetwork.valueNet, most_likely=True)
+            gen_cap = GenerateCaptionsWithActorCriticLookAhead(features_real_v, captions_real_v, a2c_network.policy_network, a2c_network.value_network, most_likely=True)
             gen_cap_str = decode_captions(gen_cap, idx_to_word=test_data["idx_to_word"])
             real_cap_str = decode_captions(captions_real, idx_to_word=test_data["idx_to_word"])
 
@@ -368,7 +381,7 @@ def test_a2c_network(a2cNetwork, test_data, image_caption_data, data_size, valid
             generated_captions_file.flush()
             image_url_file.flush()
 
-            a2cNetwork.valueNet.valrnn.init_hidden()
+            a2c_network.value_network.valrnn.init_hidden()
 
         real_captions_file.close()
         generated_captions_file.close()
@@ -377,15 +390,15 @@ def test_a2c_network(a2cNetwork, test_data, image_caption_data, data_size, valid
 
 def load_a2c_models(model_path, train_data, network_paths):
     
-    policyNet = PolicyNetwork(train_data["word_to_idx"]).to(device)
-    policyNet.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
-    policyNet.train(mode=False)
+    policy_network = PolicyNetwork(train_data["word_to_idx"]).to(device)
+    policy_network.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
+    policy_network.train(mode=False)
 
-    valueNet = ValueNetwork(train_data["word_to_idx"]).to(device)
-    valueNet.load_state_dict(torch.load(network_paths["value_network"], map_location=device))
-    valueNet.train(mode=False)
+    value_network = ValueNetwork(train_data["word_to_idx"]).to(device)
+    value_network.load_state_dict(torch.load(network_paths["value_network"], map_location=device))
+    value_network.train(mode=False)
 
-    a2cNetwork = AdvantageActorCriticNetwork(valueNet, policyNet).to(device)
-    a2cNetwork.load_state_dict(torch.load(model_path, map_location=device))
+    a2c_network = AdvantageActorCriticNetwork(value_network, policy_network).to(device)
+    a2c_network.load_state_dict(torch.load(model_path, map_location=device))
 
-    return a2cNetwork
+    return a2c_network
