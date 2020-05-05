@@ -115,7 +115,7 @@ def main(args):
     print_green(f'[Info] A2C Network Tested')
 
     print_green(f'[Info] A2C Network score - start')
-    calculate_a2cNetwork_score(image_caption_data)
+    calculate_a2cNetwork_score(image_caption_data, save_paths)
     print_green(f'[Info] A2C Network score - end')
 
     if args.postprocess:
@@ -132,8 +132,8 @@ if __name__ == "__main__":
     parser.add_argument('--training_size', type=int, help='Size of the training set to use (set 0 for the full set)', default=0)
     parser.add_argument('--test_size', type=int, help='Size of the test set to use', default=40504)
 
-    parser.add_argument('--epochs', type=int, help='Number of Epochs to use for Training the A2C Network', default=100)
-    parser.add_argument('--episodes', type=int, help='Number of Episodes to use for Training the A2C Network', default=10000)
+    parser.add_argument('--epochs', type=int, help='Number of Epochs to use for Training the A2C Network', default=10000)
+    parser.add_argument('--episodes', type=int, help='Number of Episodes to use for Training the A2C Network', default=100)
     parser.add_argument('--plot', type=int, help='Records the data for tensorboard plots after this many episodes', default=10)
 
     parser.add_argument('--retrain', action='store_true', help='Whether to retrain value, policy and reward networks', default=False)
