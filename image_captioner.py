@@ -57,9 +57,6 @@ def setup(args):
 
     a2c_file = get_filename(A2C_NETWORK_WEIGHTS_FILE, args.curriculum)
     results_file = get_filename(RESULTS_FILE, args.curriculum)
-    reward_file = get_filename(REWARD_NETWORK_WEIGHTS_FILE, args.curriculum)
-    policy_file = get_filename(POLICY_NETWORK_WEIGHTS_FILE, args.curriculum)
-    value_file = get_filename(VALUE_NETWORK_WEIGHTS_FILE, args.curriculum)
     generated_captions_file = get_filename(GENERATED_CAPTIONS_FILE, args.curriculum)
 
     save_paths = {
@@ -76,9 +73,9 @@ def setup(args):
     }
 
     network_paths = {
-        "reward_network": os.path.join("models_pretrained", reward_file),
-        "policy_network": os.path.join("models_pretrained", policy_file),
-        "value_network": os.path.join("models_pretrained", value_file),
+        "reward_network": os.path.join("models_pretrained", REWARD_NETWORK_WEIGHTS_FILE),
+        "policy_network": os.path.join("models_pretrained", POLICY_NETWORK_WEIGHTS_FILE),
+        "value_network": os.path.join("models_pretrained", VALUE_NETWORK_WEIGHTS_FILE),
     }
 
     return save_paths, image_caption_data, network_paths
