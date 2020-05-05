@@ -8,7 +8,7 @@ from reinforcement_learning_networks import *
 from torch.utils.tensorboard import SummaryWriter
 
 
-def train_value_network(train_data, network_paths, plot_dir, batch_size=50, epochs=50000):
+def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epochs=50000):
 
     value_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
 
@@ -59,7 +59,7 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=50, epoc
             
             print("epoch:", epoch, "loss:", loss.item())
 
-        value_writer.add_scalar('Value Network',loss,epoch)
+        # value_writer.add_scalar('Value Network',loss,epoch)
 
         optimizer.zero_grad()
         loss.backward()
@@ -72,7 +72,7 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=50, epoc
     return valueNetwork
 
 
-def train_policy_network(train_data, network_paths, plot_dir, batch_size=100, epochs=100000, pretrained=False):
+def train_policy_network(train_data, network_paths, plot_dir, batch_size=256, epochs=50000):
 
     policyNetwork = PolicyNetwork(train_data["word_to_idx"]).to(device)
     criterion = nn.CrossEntropyLoss().to(device)
@@ -107,7 +107,7 @@ def train_policy_network(train_data, network_paths, plot_dir, batch_size=100, ep
         optimizer.step()
 
 
-def train_reward_network(train_data, network_paths, plot_dir, batch_size=50, epochs=50000):
+def train_reward_network(train_data, network_paths, plot_dir, batch_size=256, epochs=50000):
 
     reward_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
     rewardNetwork = RewardNetwork(train_data["word_to_idx"]).to(device)
@@ -115,7 +115,9 @@ def train_reward_network(train_data, network_paths, plot_dir, batch_size=50, epo
 
     bestLoss = 10000
     print(f'[Info] Training Reward Network\n')
+
     for epoch in range(epochs):
+
         captions, features, _ = sample_coco_minibatch(train_data, batch_size=batch_size, split='train')
         features = torch.tensor(features, device=device).float()
         captions = torch.tensor(captions, device=device).long()
@@ -245,13 +247,13 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, p
             
             if episode % 1000 == 0:
                 print("[training] episode: %s, time taken: %ss" % (episode, time.time() - episode_t))
-                print("[training] current memory allocated: %s\t | cached memory: %s" \
-                                % (torch.cuda.memory_allocated() / 1024 ** 2, \
-                                        torch.cuda.memory_cached() / 1024 ** 2))
-                # print_garbage_collection()
                 episode_t = time.time()
+            #     print("[training] current memory allocated: %s\t | cached memory: %s" \
+            #                     % (torch.cuda.memory_allocated() / 1024 ** 2, \
+            #                             torch.cuda.memory_cached() / 1024 ** 2))
+            #     print_garbage_collection()
 
-            ## Summary Writer
+            # Summary Writer
             if episode % plot_freq == 0:
                 a2c_train_writer.add_scalar('A2C Network',episodicAvgLoss,episode)
         
@@ -326,11 +328,11 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
                 
                 if episode % 1000 == 0:
                     print("[training] episode: %s, time taken: %ss" % (episode, time.time() - episode_t))
-                    print("[training] current memory allocated: %s\t | cached memory: %s" \
-                                    % (torch.cuda.memory_allocated() / 1024 ** 2, \
-                                            torch.cuda.memory_cached() / 1024 ** 2))
-                    # print_garbage_collection()
                     episode_t = time.time()
+                #     print("[training] current memory allocated: %s\t | cached memory: %s" \
+                #                     % (torch.cuda.memory_allocated() / 1024 ** 2, \
+                #                             torch.cuda.memory_cached() / 1024 ** 2))
+                #     print_garbage_collection()
 
                 # Summary Writer
                 if episode % plot_freq == 0:
@@ -346,7 +348,8 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
 def test_a2c_network(a2c_network, test_data, image_caption_data, data_size, validation_batch_size=128):
 
     with torch.no_grad():
-        # a2c_test_writer = SummaryWriter()
+
+        a2c_test_writer = SummaryWriter()
         a2c_network.train(False)
 
         real_captions_filename = image_caption_data["real_captions_path"]
