@@ -80,7 +80,6 @@ def setup(args):
 
     return save_paths, image_caption_data, network_paths
 
-def main(args):
 
     save_paths, image_caption_data, network_paths = setup(args)
 
@@ -90,7 +89,6 @@ def main(args):
     data = load_data(base_dir=BASE_DIR, max_train=max_train, print_keys=True)
     print_green(f'[Info] COCO dataset loaded')
 
-    
     if os.path.isfile(args.test_model) and os.path.split(args.test_model)[1] == "a2cNetwork.pt":
         print_green(f'[Info] Loading A2C Network')
         a2c_network = load_a2c_models(args.test_model, data, network_paths)
@@ -109,10 +107,9 @@ def main(args):
                                         retrain_all=args.retrain, curriculum=curriculum)
             print_green(f'[Info] A2C Network trained')
 
-
     print_green(f'[Info] Testing A2C Network')
     test_a2c_network(a2c_network, test_data=data, \
-                            image_caption_data=image_caption_data, data_size=args.test_size)
+                        image_caption_data=image_caption_data, data_size=args.test_size)
     print_green(f'[Info] A2C Network Tested')
 
     print_green(f'[Info] A2C Network score - start')
