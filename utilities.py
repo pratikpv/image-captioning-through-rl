@@ -12,6 +12,7 @@ from metrics import *
 import sys
 import os
 import urllib.request
+from reinforcement_learning_networks import *
 
 
 def print_green(text):
@@ -106,7 +107,7 @@ def decode_captions(captions, idx_to_word):
     return decoded
 
 
-def sample_coco_minibatch(data, batch_size=100, split='train'):
+def get_coco_batch(data, batch_size=100, split='train'):
     split_size = data['%s_captions' % split].shape[0]
     mask = np.random.choice(split_size, batch_size)
     captions = data['%s_captions' % split][mask]
@@ -189,3 +190,19 @@ def post_process_data(image_caption_data, top_item_count=5):
     generated_captions_file.close()
     image_url_file.close()
     best_score_file.close()
+
+
+def load_a2c_models(model_path, train_data, network_paths):
+    
+    policy_network = PolicyNetwork(train_data["word_to_idx"]).to(device)
+    policy_network.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
+    policy_network.train(mode=False)
+
+    value_network = ValueNetwork(train_data["word_to_idx"]).to(device)
+    value_network.load_state_dict(torch.load(network_paths["value_network"], map_location=device))
+    value_network.train(mode=False)
+
+    a2c_network = AdvantageActorCriticNetwork(value_network, policy_network).to(device)
+    a2c_network.load_state_dict(torch.load(model_path, map_location=device))
+
+    return a2c_network

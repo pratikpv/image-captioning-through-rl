@@ -8,7 +8,69 @@ from reinforcement_learning_networks import *
 from torch.utils.tensorboard import SummaryWriter
 
 
-def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epochs=50000):
+# https://cs230-stanford.github.io/pytorch-nlp.html#writing-a-custom-loss-function
+def VisualSemanticEmbeddingLoss(visuals, semantics):
+    beta = 0.2
+    N, D = visuals.shape
+    
+    visloss = torch.mm(visuals, semantics.t())
+    visloss = visloss - torch.diag(visloss).unsqueeze(1)
+    visloss = visloss + (beta/N)*(torch.ones((N, N)).to(device) - torch.eye(N).to(device))
+    visloss = F.relu(visloss)
+    visloss = torch.sum(visloss)/N
+    
+    semloss = torch.mm(semantics, visuals.t())
+    semloss = semloss - torch.diag(semloss).unsqueeze(1)
+    semloss = semloss + (beta/N)*(torch.ones((N, N)).to(device) - torch.eye(N).to(device))
+    semloss = F.relu(semloss)
+    semloss = torch.sum(semloss)/N
+    
+    return visloss + semloss
+
+def GenerateCaptions(features, captions, policy_network):
+    features = torch.tensor(features, device=device).float().unsqueeze(0)
+    gen_caps = torch.tensor(captions[:, 0:1], device=device).long()
+    for t in range(MAX_SEQ_LEN - 1):
+        output = policy_network(features, gen_caps)
+        gen_caps = torch.cat((gen_caps, output[:, -1:, :].argmax(axis=2)), axis=1)
+    return gen_caps
+
+def GenerateCaptionsWithActorCriticLookAhead(features, captions, policy_network, value_network, beamSize=5, most_likely=False):
+
+    features = torch.tensor(features, device=device).float().unsqueeze(0)
+    gen_caps = torch.tensor(captions[:, 0:1], device=device).long()
+    
+    candidates = [(gen_caps, 0)]
+    for t in range(MAX_SEQ_LEN-1):
+        next_candidates = []
+        for c in range(len(candidates)):
+            output = policy_network(features, candidates[c][0])
+            probs, words = torch.topk(output[:,-1:,:], beamSize)
+            for i in range(beamSize):
+                cap = torch.cat((candidates[c][0], words[:, :, i]), axis=1)
+                value = value_network(features.squeeze(0), cap).detach()
+                score_delta = 0.6*value + 0.4*torch.log(probs[:,:,i])
+                score = candidates[c][1] - score_delta
+                next_candidates.append((cap, score))
+        ordered_candidates = sorted(next_candidates, key=lambda tup:tup[1].mean())
+        candidates = ordered_candidates[:beamSize]
+    
+    if most_likely == True:
+        return candidates[0][0]
+    return candidates
+
+
+def GetRewards(features, captions, reward_network):
+
+    visEmbeds, semEmbeds = reward_network(features, captions)
+    visEmbeds = F.normalize(visEmbeds, p=2, dim=1)
+    semEmbeds = F.normalize(semEmbeds, p=2, dim=1)
+
+    rewards = torch.sum(visEmbeds * semEmbeds, axis=1).unsqueeze(1)
+    return rewards
+
+
+def train_value_network(train_data, network_paths, plot_dir, batch_size=1024, epochs=50000):
 
     value_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
 
@@ -34,15 +96,12 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epo
 
     print(f'[Info] Training Value Network\n')
     for epoch in range(epochs):
-        captions, features, _ = sample_coco_minibatch(train_data, batch_size=batch_size, split='train')
+        captions, features, _ = get_coco_batch(train_data, batch_size=batch_size, split='train')
         features = torch.tensor(features, device=device).float()
         
         # Generate captions using the policy network
         captions = GenerateCaptions(features, captions, policy_network)
 
-        # Generate Captions using policy and value networks (Look Ahead Inference)
-        # captions = GenerateCaptionsWithActorCriticLookAhead(features, captions, policy_network, valueNetwork)
-        
         # Compute the reward of the generated caption using reward network
         rewards = GetRewards(features, captions, reward_network)
         
@@ -59,7 +118,7 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epo
             
             print("epoch:", epoch, "loss:", loss.item())
 
-        # value_writer.add_scalar('Value Network',loss,epoch)
+        value_writer.add_scalar('Value Network',loss,epoch)
 
         optimizer.zero_grad()
         loss.backward()
@@ -72,7 +131,7 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epo
     return valueNetwork
 
 
-def train_policy_network(train_data, network_paths, plot_dir, batch_size=256, epochs=50000):
+def train_policy_network(train_data, network_paths, plot_dir, batch_size=1024, epochs=50000):
 
     policyNetwork = PolicyNetwork(train_data["word_to_idx"]).to(device)
     criterion = nn.CrossEntropyLoss().to(device)
@@ -83,7 +142,7 @@ def train_policy_network(train_data, network_paths, plot_dir, batch_size=256, ep
     bestLoss = 10000
     print(f'[Info] Training Policy Network\n')
     for epoch in range(epochs):
-        captions, features, _ = sample_coco_minibatch(train_data, batch_size=batch_size, split='train')
+        captions, features, _ = get_coco_batch(train_data, batch_size=batch_size, split='train')
         features = torch.tensor(features, device=device).float().unsqueeze(0)
         captions_in = torch.tensor(captions[:, :-1], device=device).long()
         captions_out = torch.tensor(captions[:, 1:], device=device).long()
@@ -107,7 +166,7 @@ def train_policy_network(train_data, network_paths, plot_dir, batch_size=256, ep
         optimizer.step()
 
 
-def train_reward_network(train_data, network_paths, plot_dir, batch_size=256, epochs=50000):
+def train_reward_network(train_data, network_paths, plot_dir, batch_size=1024, epochs=50000):
 
     reward_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
     rewardNetwork = RewardNetwork(train_data["word_to_idx"]).to(device)
@@ -118,7 +177,7 @@ def train_reward_network(train_data, network_paths, plot_dir, batch_size=256, ep
 
     for epoch in range(epochs):
 
-        captions, features, _ = sample_coco_minibatch(train_data, batch_size=batch_size, split='train')
+        captions, features, _ = get_coco_batch(train_data, batch_size=batch_size, split='train')
         features = torch.tensor(features, device=device).float()
         captions = torch.tensor(captions, device=device).long()
         ve, se = rewardNetwork(features, captions)
@@ -203,7 +262,7 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, p
     for epoch in range(epoch_count):
         episodicAvgLoss = 0
 
-        captions, features, _ = sample_coco_minibatch(train_data, batch_size=episodes, split='train')
+        captions, features, _ = get_coco_batch(train_data, batch_size=episodes, split='train')
         features = torch.tensor(features, device=device).float()
         captions = torch.tensor(captions, device=device).long()
 
@@ -273,7 +332,7 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
         for epoch in range(epoch_count):
             episodicAvgLoss = 0
 
-            captions, features, _ = sample_coco_minibatch(train_data, batch_size=episodes, split='train')
+            captions, features, _ = get_coco_batch(train_data, batch_size=episodes, split='train')
             features = torch.tensor(features, device=device).float()
             captions = torch.tensor(captions, device=device).long()
 
@@ -360,19 +419,16 @@ def test_a2c_network(a2c_network, test_data, image_caption_data, data_size, vali
         generated_captions_file = open(generated_captions_filename, "a")
         image_url_file = open(image_url_filename, "a")
 
-        captions_real_all, features_real_all, urls_all = sample_coco_minibatch(test_data, batch_size=data_size, split='val')
+        captions_real_all, features_real_all, urls_all = get_coco_batch(test_data, batch_size=data_size, split='val')
         val_captions_lens = len(captions_real_all)
         loop_count = val_captions_lens // validation_batch_size
 
         for i in tqdm(range(0, val_captions_lens, validation_batch_size), desc='Testing model'):
-            captions_real = captions_real_all[i:i + validation_batch_size - 1]
             features_real = features_real_all[i:i + validation_batch_size - 1]
+            captions_real = captions_real_all[i:i + validation_batch_size - 1]
             urls = urls_all[i:i + validation_batch_size - 1]
 
-            captions_real_v = captions_real
-            features_real_v = features_real
-
-            gen_cap = GenerateCaptionsWithActorCriticLookAhead(features_real_v, captions_real_v, a2c_network.policy_network, a2c_network.value_network, most_likely=True)
+            gen_cap = GenerateCaptionsWithActorCriticLookAhead(features_real, captions_real, a2c_network.policy_network, a2c_network.value_network, most_likely=True)
             gen_cap_str = decode_captions(gen_cap, idx_to_word=test_data["idx_to_word"])
             real_cap_str = decode_captions(captions_real, idx_to_word=test_data["idx_to_word"])
 
@@ -390,18 +446,3 @@ def test_a2c_network(a2c_network, test_data, image_caption_data, data_size, vali
         generated_captions_file.close()
         image_url_file.close()
 
-
-def load_a2c_models(model_path, train_data, network_paths):
-    
-    policy_network = PolicyNetwork(train_data["word_to_idx"]).to(device)
-    policy_network.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
-    policy_network.train(mode=False)
-
-    value_network = ValueNetwork(train_data["word_to_idx"]).to(device)
-    value_network.load_state_dict(torch.load(network_paths["value_network"], map_location=device))
-    value_network.train(mode=False)
-
-    a2c_network = AdvantageActorCriticNetwork(value_network, policy_network).to(device)
-    a2c_network.load_state_dict(torch.load(model_path, map_location=device))
-
-    return a2c_network
