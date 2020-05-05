@@ -13,6 +13,9 @@ import sys
 import os
 import urllib.request
 
+from models import *
+from metrics import *
+
 
 def print_green(text):
     print('\033[32m', text, '\033[0m', sep='')
@@ -106,7 +109,7 @@ def decode_captions(captions, idx_to_word):
     return decoded
 
 
-def sample_coco_minibatch(data, batch_size=100, split='train'):
+def get_coco_batch(data, batch_size=100, split='train'):
     split_size = data['%s_captions' % split].shape[0]
     mask = np.random.choice(split_size, batch_size)
     captions = data['%s_captions' % split][mask]
@@ -189,3 +192,45 @@ def post_process_data(image_caption_data, top_item_count=5):
     generated_captions_file.close()
     image_url_file.close()
     best_score_file.close()
+
+
+def load_a2c_models(model_path, train_data, network_paths):
+    
+    policy_network = PolicyNetwork(train_data["word_to_idx"]).to(device)
+    policy_network.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
+    policy_network.train(mode=False)
+
+    value_network = ValueNetwork(train_data["word_to_idx"]).to(device)
+    value_network.load_state_dict(torch.load(network_paths["value_network"], map_location=device))
+    value_network.train(mode=False)
+
+    a2c_network = AdvantageActorCriticNetwork(value_network, policy_network).to(device)
+    a2c_network.load_state_dict(torch.load(model_path, map_location=device))
+
+    return a2c_network
+
+def get_filename(base_name, curriculum=False):
+
+    name, ext = os.path.splitext(base_name)
+    if curriculum:
+        name += "_curriculum"
+    name += ext
+
+    return name
+
+
+def calculate_a2cNetwork_score(image_caption_data, save_paths):
+    
+    real_captions_filename = image_caption_data["real_captions_path"]
+    generated_captions_filename = image_caption_data["generated_captions_path"]
+
+    ref, hypo = load_textfiles(real_captions_filename, generated_captions_filename)
+    network_score = str(score(ref, hypo))
+    print(network_score)
+
+    results_filename = os.path.join(save_paths["results_path"])
+    with open(results_filename, 'a') as f:
+        f.write('\n' + '-' * 10 + ' results ' + '-' * 10 + '\n')
+        f.write(network_score)
+        f.write('\n' + '-' * 10 + ' results ' + '-' * 10 + '\n')
+

@@ -7,65 +7,6 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 MAX_SEQ_LEN = 17
 
-# https://cs230-stanford.github.io/pytorch-nlp.html#writing-a-custom-loss-function
-def VisualSemanticEmbeddingLoss(visuals, semantics):
-    beta = 0.2
-    N, D = visuals.shape
-    
-    visloss = torch.mm(visuals, semantics.t())
-    visloss = visloss - torch.diag(visloss).unsqueeze(1)
-    visloss = visloss + (beta/N)*(torch.ones((N, N)).to(device) - torch.eye(N).to(device))
-    visloss = F.relu(visloss)
-    visloss = torch.sum(visloss)/N
-    
-    semloss = torch.mm(semantics, visuals.t())
-    semloss = semloss - torch.diag(semloss).unsqueeze(1)
-    semloss = semloss + (beta/N)*(torch.ones((N, N)).to(device) - torch.eye(N).to(device))
-    semloss = F.relu(semloss)
-    semloss = torch.sum(semloss)/N
-    
-    return visloss + semloss
-
-def GenerateCaptions(features, captions, model):
-    features = torch.tensor(features, device=device).float().unsqueeze(0)
-    gen_caps = torch.tensor(captions[:, 0:1], device=device).long()
-    for t in range(MAX_SEQ_LEN - 1):
-        output = model(features, gen_caps)
-        gen_caps = torch.cat((gen_caps, output[:, -1:, :].argmax(axis=2)), axis=1)
-    return gen_caps
-
-def GenerateCaptionsLI(features, captions, policyNet, valueNet, beamSize=5, most_likely=False):
-
-    features = torch.tensor(features, device=device).float().unsqueeze(0)
-    gen_caps = torch.tensor(captions[:, 0:1], device=device).long()
-    
-    candidates = [(gen_caps, 0)]
-    for t in range(MAX_SEQ_LEN-1):
-        next_candidates = []
-        for c in range(len(candidates)):
-            output = policyNet(features, candidates[c][0])
-            probs, words = torch.topk(output[:,-1:,:], beamSize)
-            for i in range(beamSize):
-                cap = torch.cat((candidates[c][0], words[:, :, i]), axis=1)
-                value = valueNet(features.squeeze(0), cap).detach()
-                score_delta = 0.6*value + 0.4*torch.log(probs[:,:,i])
-                score = candidates[c][1] - score_delta
-                next_candidates.append((cap, score))
-        ordered_candidates = sorted(next_candidates, key=lambda tup:tup[1].mean())
-        candidates = ordered_candidates[:beamSize]
-    
-    if most_likely == True:
-        return candidates[0][0][0]
-    return candidates
-
-
-def GetRewards(features, captions, model):
-    visEmbeds, semEmbeds = model(features, captions)
-    visEmbeds = F.normalize(visEmbeds, p=2, dim=1)
-    semEmbeds = F.normalize(semEmbeds, p=2, dim=1)
-    rewards = torch.sum(visEmbeds * semEmbeds, axis=1).unsqueeze(1)
-    return rewards
-
 
 class PolicyNetwork(nn.Module):
     def __init__(self, word_to_idx, input_dim=512, wordvec_dim=512, hidden_dim=512, dtype=np.float32):
@@ -172,16 +113,16 @@ class RewardNetwork(nn.Module):
 
 
 class AdvantageActorCriticNetwork(nn.Module):
-    def __init__(self, valueNet, policyNet):
+    def __init__(self, value_network, policy_network):
         super(AdvantageActorCriticNetwork, self).__init__()
 
-        self.valueNet = valueNet
-        self.policyNet = policyNet
+        self.value_network = value_network
+        self.policy_network = policy_network
 
     def forward(self, features, captions):
         # Get value from value network
-        values = self.valueNet(features, captions)
+        values = self.value_network(features, captions)
         # Get action probabilities from policy network
-        probs = self.policyNet(features.unsqueeze(0), captions)[:, -1:, :]
+        probs = self.policy_network(features.unsqueeze(0), captions)[:, -1:, :]
         return values, probs
 
