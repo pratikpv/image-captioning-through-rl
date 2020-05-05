@@ -80,7 +80,8 @@ def setup(args):
 
     return save_paths, image_caption_data, network_paths
 
-
+def main(args): 
+    
     save_paths, image_caption_data, network_paths = setup(args)
 
     max_train = None if args.training_size == 0 else args.training_size  # set None for whole training dataset
