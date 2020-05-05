@@ -12,7 +12,7 @@ from metrics import *
 import sys
 import os
 import urllib.request
-from reinforcement_learning_networks import *
+from models import *
 
 
 def print_green(text):
@@ -206,3 +206,12 @@ def load_a2c_models(model_path, train_data, network_paths):
     a2c_network.load_state_dict(torch.load(model_path, map_location=device))
 
     return a2c_network
+
+def get_filename(base_name, curriculum=False):
+
+    name, ext = os.path.splittext(base_name)
+    if curriculum:
+        name += "_curriculum"
+    name += ext
+
+    return name

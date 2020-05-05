@@ -16,8 +16,8 @@ from torchsummary import summary
 from datetime import datetime
 
 from metrics import *
-from utility_functions import *
-from reinforcement_learning_models import *
+from utilities import *
+from trainers import *
 
 # defaults and params
 device = "cuda"
@@ -26,11 +26,16 @@ REAL_CAPTIONS_FILE = 'real_captions.txt'
 GENERATED_CAPTIONS_FILE = 'generated_captions.txt'
 IMAGE_URL_FILENAME = 'image_url.txt'
 LOG_DIR = ""
-A2CNETWORK_WEIGHTS_FILE = 'a2cNetwork.pt'
+
+A2C_NETWORK_WEIGHTS_FILE = 'a2cNetwork.pt'
+REWARD_NETWORK_WEIGHTS_FILE = 'rewardNetwork.pt'
+POLICY_NETWORK_WEIGHTS_FILE = 'policyNetwork.pt'
+VALUE_NETWORK_WEIGHTS_FILE = 'valueNetwork.pt'
 RESULTS_FILE = 'results.txt'
+
 BEST_SCORE_FILENAME = 'best_scores.txt'
 BEST_SCORE_IMAGES_PATH = 'best_scores_images'
-CURRICILUM_LEVELS = [2,4,6,8,10]
+CURRICILUM_LEVELS = [2,3,5,7,11,13]
 
 # os.environ["JAVA_HOME"] = "/usr/bin/java"
 # sys.path.append("/usr/bin/java")
@@ -51,7 +56,8 @@ def calculate_a2cNetwork_score(image_caption_data):
         f.write('\n' + '-' * 10 + ' results ' + '-' * 10 + '\n')
 
 
-def setup(base_path=None):
+def setup(args):
+
     global LOG_DIR, device
 
     # torch.backends.cudnn.enabled = False
@@ -61,42 +67,45 @@ def setup(base_path=None):
         print_green(f"[Info] Working on: {device}, device_name: {torch.cuda.get_device_name(0)} ")
     else:
         print_green(f"[Info] Working on: {device}")
-
-    if base_path is not None:
-        LOG_DIR = base_path
+        
+    if os.path.isdir(os.path.split(args.test_model)[0]):
+        LOG_DIR = os.path.split(args.test_model)[0]
     else:
         current_time_str = str(datetime.now().strftime("%d-%b-%Y_%H_%M_%S"))
         LOG_DIR = os.path.join('logs', current_time_str)
         os.makedirs(LOG_DIR)
 
+    a2c_file = get_filename(A2C_NETWORK_WEIGHTS_FILE, args.curriculum)
+    results_file = get_filename(RESULTS_FILE, args.curriculum)
+    reward_file = get_filename(REWARD_NETWORK_WEIGHTS_FILE, args.curriculum)
+    policy_file = get_filename(POLICY_NETWORK_WEIGHTS_FILE, args.curriculum)
+    value_file = get_filename(VALUE_NETWORK_WEIGHTS_FILE, args.curriculum)
+    generated_captions_file = get_filename(GENERATED_CAPTIONS_FILE, args.curriculum)
+
     save_paths = {
-        "model_path": os.path.join(LOG_DIR, A2CNETWORK_WEIGHTS_FILE),
-        "results_path": os.path.join(LOG_DIR, RESULTS_FILE),
+        "model_path": os.path.join(LOG_DIR, a2c_file),
+        "results_path": os.path.join(LOG_DIR, results_file),
     }
 
     image_caption_data = {
         "real_captions_path": os.path.join(LOG_DIR, REAL_CAPTIONS_FILE),
-        "generated_captions_path": os.path.join(LOG_DIR, GENERATED_CAPTIONS_FILE),
+        "generated_captions_path": os.path.join(LOG_DIR, generated_captions_file),
         "image_urls_path": os.path.join(LOG_DIR, IMAGE_URL_FILENAME),
         "best_score_file_path": os.path.join(LOG_DIR, BEST_SCORE_FILENAME),
         "best_score_images_path": os.path.join(LOG_DIR, BEST_SCORE_IMAGES_PATH),
     }
 
     network_paths = {
-        "reward_network": "models/rewardNetwork.pt",
-        "policy_network": "models/policyNetwork.pt",
-        "value_network": "models/valueNetwork.pt",
+        "reward_network": os.path.join("models", reward_file),
+        "policy_network": os.path.join("models", policy_file),
+        "value_network": os.path.join("models", value_file),
     }
 
     return save_paths, image_caption_data, network_paths
 
 def main(args):
 
-    if os.path.isdir(os.path.split(args.test_model)[0]):
-        base_path = os.path.split(args.test_model)[0]
-    else:
-        base_path = None
-    save_paths, image_caption_data, network_paths = setup(base_path)
+    save_paths, image_caption_data, network_paths = setup(args)
 
     max_train = None if args.training_size == 0 else args.training_size  # set None for whole training dataset
     max_train_str = '' if max_train == None else str(max_train)

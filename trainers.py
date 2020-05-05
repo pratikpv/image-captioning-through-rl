@@ -3,8 +3,8 @@ import random
 import torch.optim as optim
 import os
 from tqdm import tqdm
-from utility_functions import *
-from reinforcement_learning_networks import *
+from utilities import *
+from models import *
 from torch.utils.tensorboard import SummaryWriter
 
 
