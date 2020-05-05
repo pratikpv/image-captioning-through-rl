@@ -76,9 +76,9 @@ def setup(args):
     }
 
     network_paths = {
-        "reward_network": os.path.join("models", reward_file),
-        "policy_network": os.path.join("models", policy_file),
-        "value_network": os.path.join("models", value_file),
+        "reward_network": os.path.join("models_pretrained", reward_file),
+        "policy_network": os.path.join("models_pretrained", policy_file),
+        "value_network": os.path.join("models_pretrained", value_file),
     }
 
     return save_paths, image_caption_data, network_paths
