@@ -141,18 +141,16 @@ def train_reward_network(train_data, network_paths, plot_dir, batch_size=50, epo
     return rewardNetwork
 
 
-def train_a2c_network(train_data, save_paths, network_paths, plot_dir, epoch_count=10, episodes=100, usePretrained=True, plot_freq=10):
+def train_a2c_network(train_data, save_paths, network_paths, plot_dir, plot_freq, epoch_count, episodes, usePretrained=True, curriculum=None):
     
-    a2c_train_writer = SummaryWriter(log_dir=os.path.join(plot_dir,'runs'))
-
     model_save_path = save_paths["model_path"]
     results_save_path = save_paths["results_path"]
 
-    if usePretrained:
-        rewardNet = RewardNetwork(train_data["word_to_idx"]).to(device)
-        policyNet = PolicyNetwork(train_data["word_to_idx"]).to(device)
-        valueNet = ValueNetwork(train_data["word_to_idx"]).to(device)
+    rewardNet = RewardNetwork(train_data["word_to_idx"]).to(device)
+    policyNet = PolicyNetwork(train_data["word_to_idx"]).to(device)
+    valueNet = ValueNetwork(train_data["word_to_idx"]).to(device)
 
+    if usePretrained:
         rewardNet.load_state_dict(torch.load(network_paths["reward_network"], map_location=device))
         policyNet.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
         valueNet.load_state_dict(torch.load(network_paths["value_network"], map_location=device))
@@ -162,8 +160,6 @@ def train_a2c_network(train_data, save_paths, network_paths, plot_dir, epoch_cou
         policyNet = train_policy_network(train_data, network_paths, plot_dir)
         valueNet = train_value_network(train_data, network_paths, plot_dir)
 
-    # rewardNet.train(mode=False)
-
     a2cNetwork = AdvantageActorCriticNetwork(valueNet, policyNet).to(device)
     a2cNetwork.train(True)
     optimizer = optim.Adam(a2cNetwork.parameters(), lr=0.0001)
@@ -171,6 +167,23 @@ def train_a2c_network(train_data, save_paths, network_paths, plot_dir, epoch_cou
     print(f'[training] train_data len = {len(train_data["train_captions"])}')
     print(f'[training] episodes = {episodes}')
     print(f'[training] epoch_count = {epoch_count}')
+
+    if curriculum is None:
+        a2cNetwork = a2c_training(train_data, a2cNetwork, rewardNet, optimizer, plot_dir, plot_freq, episodes, epoch_count)
+    else:
+        a2cNetwork = a2c_curriculum_training(train_data, a2cNetwork, rewardNet, optimizer, plot_dir, plot_freq, episodes, epoch_count, curriculum)
+
+    torch.save(a2cNetwork.state_dict(), model_save_path)
+    with open(results_save_path, 'a') as f:
+        f.write('\n' + '-' * 10 + ' network ' + '-' * 10 + '\n')
+        f.write(str(a2cNetwork))
+        f.write('\n' + '-' * 10 + ' network ' + '-' * 10 + '\n')
+
+    return a2cNetwork
+
+def a2c_training(train_data, a2cNetwork, rewardNet, optimizer, plot_dir, plot_freq, episodes, epoch_count):
+
+    a2c_train_writer = SummaryWriter(log_dir=os.path.join(plot_dir,'runs'))
 
     for epoch in range(epoch_count):
         episodicAvgLoss = 0
@@ -231,50 +244,14 @@ def train_a2c_network(train_data, save_paths, network_paths, plot_dir, epoch_cou
         
         print(f"[training] epoch:{epoch} episodicAvgLoss: {episodicAvgLoss}")
         rewardNet.rewrnn.init_hidden()
-        valueNet.valrnn.init_hidden()
-
-    torch.save(a2cNetwork.state_dict(), model_save_path)
-    with open(results_save_path, 'a') as f:
-        f.write('\n' + '-' * 10 + ' network ' + '-' * 10 + '\n')
-        f.write(str(a2cNetwork))
-        f.write('\n' + '-' * 10 + ' network ' + '-' * 10 + '\n')
-
-    return a2cNetwork
+        a2cNetwork.valueNet.valrnn.init_hidden()
 
 
-def train_a2c_network_curriculum(train_data, save_paths, network_paths, plot_dir, curriculum=[2,4,6,8,10], epoch_count=10, episodes=100, usePretrained=True, plot_freq=10):
-    
+def a2c_curriculum_training(train_data, a2cNetwork, rewardNet, optimizer, plot_dir, plot_freq, episodes, epoch_count, curriculum):
+
     a2c_train_curriculum_writer = SummaryWriter(log_dir=os.path.join(plot_dir,'runs'))
-    
-    model_save_path = save_paths["model_path"]
-    results_save_path = save_paths["results_path"]
-
-    if usePretrained:
-        rewardNet = RewardNetwork(train_data["word_to_idx"]).to(device)
-        policyNet = PolicyNetwork(train_data["word_to_idx"]).to(device)
-        valueNet = ValueNetwork(train_data["word_to_idx"]).to(device)
-
-        rewardNet.load_state_dict(torch.load(network_paths["reward_network"], map_location=device))
-        policyNet.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
-        valueNet.load_state_dict(torch.load(network_paths["value_network"], map_location=device))
-
-    else:
-        rewardNet = train_reward_network(train_data, network_paths, plot_dir)
-        policyNet = train_policy_network(train_data, network_paths, plot_dir)
-        valueNet = train_value_network(train_data, network_paths, plot_dir)
-
-    rewardNet.train(mode=False)
-    policyNet.train(mode=False)
-    valueNet.train(mode=False)
-
-    a2cNetwork = AdvantageActorCriticNetwork(valueNet, policyNet).to(device)
-    a2cNetwork.train(True)
-    optimizer = optim.Adam(a2cNetwork.parameters(), lr=0.0001)
 
     print(f'[training] mode set to curriculum training using levels: {curriculum}')
-    print(f'[training] train_data len = {len(train_data["train_captions"])}')
-    print(f'[training] episodes = {episodes}')
-    print(f'[training] epoch_count = {epoch_count}')
 
     for level in curriculum:
 
@@ -285,8 +262,6 @@ def train_a2c_network_curriculum(train_data, save_paths, network_paths, plot_dir
             features = torch.tensor(features, device=device).float()
             captions = torch.tensor(captions, device=device).long()
 
-            # decoded = decode_captions(captions, train_data['idx_to_word'])
-            
             episode_t = time.time()
             for episode in range(episodes):
                 log_probs = []
@@ -344,19 +319,13 @@ def train_a2c_network_curriculum(train_data, save_paths, network_paths, plot_dir
                     # print_garbage_collection()
                     episode_t = time.time()
 
-                ## Summary Writer
+                # Summary Writer
                 if episode % plot_freq == 0:
                     a2c_train_curriculum_writer.add_scalar('A2C Network Curriculum',episodicAvgLoss,episode)
             
             print(f"[training] epoch:{epoch} episodicAvgLoss: {episodicAvgLoss}")
             rewardNet.rewrnn.init_hidden()
-            valueNet.valrnn.init_hidden()
-
-        torch.save(a2cNetwork.state_dict(), model_save_path)
-        with open(results_save_path, 'a') as f:
-            f.write('\n' + '-' * 10 + ' network ' + '-' * 10 + '\n')
-            f.write(str(a2cNetwork))
-            f.write('\n' + '-' * 10 + ' network ' + '-' * 10 + '\n')
+            a2cNetwork.valueNet.valrnn.init_hidden()
 
     return a2cNetwork
 
@@ -398,7 +367,7 @@ def test_a2c_network(a2cNetwork, test_data, image_caption_data, data_size, valid
             real_captions_file.flush()
             generated_captions_file.flush()
             image_url_file.flush()
-            
+
             a2cNetwork.valueNet.valrnn.init_hidden()
 
         real_captions_file.close()

@@ -30,7 +30,7 @@ A2CNETWORK_WEIGHTS_FILE = 'a2cNetwork.pt'
 RESULTS_FILE = 'results.txt'
 BEST_SCORE_FILENAME = 'best_scores.txt'
 BEST_SCORE_IMAGES_PATH = 'best_scores_images'
-
+CURRICILUM_LEVELS = [2,4,6,8,10]
 
 # os.environ["JAVA_HOME"] = "/usr/bin/java"
 # sys.path.append("/usr/bin/java")
@@ -113,11 +113,14 @@ def main(args):
         print_green(f'[Info] Training A2C Network')
         with torch.autograd.set_detect_anomaly(True):
             if args.curriculum:
-                a2cNetwork = train_a2c_network_curriculum(train_data=data, save_paths=save_paths, network_paths=network_paths, \
-                            plot_dir=LOG_DIR, curriculum=[2,4,6,8,10], epoch_count=args.epochs, episodes=args.episodes, usePretrained=not args.retrain, plot_freq=args.plot)
+                curriculum = CURRICILUM_LEVELS
             else:
-                a2cNetwork = train_a2c_network(train_data=data, save_paths=save_paths, network_paths=network_paths, \
-                            plot_dir=LOG_DIR, epoch_count=args.epochs, episodes=args.episodes, usePretrained=not args.retrain, plot_freq=args.plot)
+                curriculum = None
+            a2cNetwork = train_a2c_network(train_data=data, \
+                            save_paths=save_paths, network_paths=network_paths, \
+                                plot_dir=LOG_DIR, plot_freq=args.plot, \
+                                    epoch_count=args.epochs, episodes=args.episodes, \
+                                        usePretrained=not args.retrain, curriculum=curriculum)
             print_green(f'[Info] A2C Network trained')
 
 
@@ -148,9 +151,8 @@ if __name__ == "__main__":
     parser.add_argument('--retrain', action='store_true', help='Whether to retrain value, policy and reward networks', default=False)
     parser.add_argument('--test_model', type=str, help='Test a pretrained advantage actor critic model', default="")
     parser.add_argument('--postprocess', action='store_true', help='Post process data to download images from the validation cycle', default=False)
-    parser.add_argument('--plot', type=int, help='records the data for tensorboard plots after this many episodes', default=10)
-
-    parser.add_argument('--curriculum',type=bool,help='Use curriculum training approach',default=False)
+    parser.add_argument('--plot', type=int, help='Records the data for tensorboard plots after this many episodes', default=10)
+    parser.add_argument('--curriculum', action='store_true', help='Use curriculum training approach',default=False)
         
     args = parser.parse_args()
 
