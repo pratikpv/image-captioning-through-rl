@@ -15,7 +15,6 @@ from torchsummary import summary
 
 from datetime import datetime
 
-from metrics import *
 from utilities import *
 from trainers import *
 
@@ -36,25 +35,6 @@ RESULTS_FILE = 'results.txt'
 BEST_SCORE_FILENAME = 'best_scores.txt'
 BEST_SCORE_IMAGES_PATH = 'best_scores_images'
 CURRICILUM_LEVELS = [2,3,5,7,11,13]
-
-# os.environ["JAVA_HOME"] = "/usr/bin/java"
-# sys.path.append("/usr/bin/java")
-
-
-def calculate_a2cNetwork_score(image_caption_data):
-    real_captions_filename = image_caption_data["real_captions_path"]
-    generated_captions_filename = image_caption_data["generated_captions_path"]
-
-    ref, hypo = load_textfiles(real_captions_filename, generated_captions_filename)
-    network_score = str(score(ref, hypo))
-    print(network_score)
-
-    results_filename = os.path.join(LOG_DIR, RESULTS_FILE)
-    with open(results_filename, 'a') as f:
-        f.write('\n' + '-' * 10 + ' results ' + '-' * 10 + '\n')
-        f.write(network_score)
-        f.write('\n' + '-' * 10 + ' results ' + '-' * 10 + '\n')
-
 
 def setup(args):
 

@@ -12,7 +12,9 @@ from metrics import *
 import sys
 import os
 import urllib.request
+
 from models import *
+from metrics import *
 
 
 def print_green(text):
@@ -209,9 +211,26 @@ def load_a2c_models(model_path, train_data, network_paths):
 
 def get_filename(base_name, curriculum=False):
 
-    name, ext = os.path.splittext(base_name)
+    name, ext = os.path.splitext(base_name)
     if curriculum:
         name += "_curriculum"
     name += ext
 
     return name
+
+
+def calculate_a2cNetwork_score(image_caption_data, save_paths):
+    
+    real_captions_filename = image_caption_data["real_captions_path"]
+    generated_captions_filename = image_caption_data["generated_captions_path"]
+
+    ref, hypo = load_textfiles(real_captions_filename, generated_captions_filename)
+    network_score = str(score(ref, hypo))
+    print(network_score)
+
+    results_filename = os.path.join(save_paths["results_path"])
+    with open(results_filename, 'a') as f:
+        f.write('\n' + '-' * 10 + ' results ' + '-' * 10 + '\n')
+        f.write(network_score)
+        f.write('\n' + '-' * 10 + ' results ' + '-' * 10 + '\n')
+
