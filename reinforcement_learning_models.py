@@ -379,7 +379,7 @@ def test_a2c_network(a2cNetwork, test_data, image_caption_data, data_size, valid
         val_captions_lens = len(captions_real_all)
         loop_count = val_captions_lens // validation_batch_size
 
-        for i in tqdm(range(loop_count), desc='Testing model'):
+        for i in tqdm(range(0, val_captions_lens, validation_batch_size), desc='Testing model'):
             captions_real = captions_real_all[i:i + validation_batch_size - 1]
             features_real = features_real_all[i:i + validation_batch_size - 1]
             urls = urls_all[i:i + validation_batch_size - 1]
@@ -395,6 +395,10 @@ def test_a2c_network(a2cNetwork, test_data, image_caption_data, data_size, valid
             generated_captions_file.write("\n".join(gen_cap_str))
             image_url_file.write("\n".join(urls))
 
+            real_captions_file.flush()
+            generated_captions_file.flush()
+            image_url_file.flush()
+            
             a2cNetwork.valueNet.valrnn.init_hidden()
 
         real_captions_file.close()
