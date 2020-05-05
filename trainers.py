@@ -70,7 +70,7 @@ def GetRewards(features, captions, reward_network):
     return rewards
 
 
-def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epochs=50000):
+def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epochs=25000):
 
     value_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
 
