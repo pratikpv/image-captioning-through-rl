@@ -1,22 +1,7 @@
-import os
-import json
-import h5py
-import sys
-import time
 import argparse
-
-import numpy as np
-
-import torch
-import torch.optim as optim
-import torch.nn as nn
-from torch.nn import functional as F
-from torchsummary import summary
-
 from datetime import datetime
-
-from utilities import *
 from trainers import *
+import warnings
 
 # defaults and params
 device = "cuda"
@@ -40,20 +25,20 @@ def setup(args):
 
     global LOG_DIR, device
 
-    # torch.backends.cudnn.enabled = False
-    # device = "cpu"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if torch.cuda.is_available():
         print_green(f"[Info] Working on: {device}, device_name: {torch.cuda.get_device_name(0)} ")
     else:
         print_green(f"[Info] Working on: {device}")
-        
+
     if os.path.isdir(os.path.split(args.test_model)[0]):
         LOG_DIR = os.path.split(args.test_model)[0]
     else:
         current_time_str = str(datetime.now().strftime("%d-%b-%Y_%H_%M_%S"))
         LOG_DIR = os.path.join('logs', current_time_str)
         os.makedirs(LOG_DIR)
+
+    warnings.filterwarnings("ignore", category=UserWarning)
 
     a2c_file = get_filename(A2C_NETWORK_WEIGHTS_FILE, args.curriculum)
     results_file = get_filename(RESULTS_FILE, args.curriculum)
@@ -81,8 +66,8 @@ def setup(args):
 
     return save_paths, image_caption_data, network_paths
 
-def main(args): 
-    
+def main(args):
+
     save_paths, image_caption_data, network_paths = setup(args)
 
     max_train = None if args.training_size == 0 else args.training_size  # set None for whole training dataset
@@ -104,8 +89,7 @@ def main(args):
                 curriculum = None
             a2c_network = train_a2c_network(train_data=data, \
                             save_paths=save_paths, network_paths=network_paths, \
-                                plot_dir=LOG_DIR, plot_freq=args.plot, \
-                                    epoch_count=args.epochs, episodes=args.episodes, \
+                                plot_dir=LOG_DIR, epoch_count=args.epochs, episodes=args.episodes, \
                                         retrain_all=args.retrain, curriculum=curriculum)
             print_green(f'[Info] A2C Network trained')
 
@@ -134,7 +118,6 @@ if __name__ == "__main__":
 
     parser.add_argument('--epochs', type=int, help='Number of Epochs to use for Training the A2C Network', default=10000)
     parser.add_argument('--episodes', type=int, help='Number of Episodes to use for Training the A2C Network', default=100)
-    parser.add_argument('--plot', type=int, help='Records the data for tensorboard plots after this many episodes', default=10)
 
     parser.add_argument('--retrain', action='store_true', help='Whether to retrain value, policy and reward networks', default=False)
     parser.add_argument('--postprocess', action='store_true', help='Post process data to download images from the validation cycle', default=False)
@@ -142,7 +125,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--test_model', type=str, help='Test a pretrained advantage actor critic model', default="")
     parser.add_argument('--pretrained_path', type=str, help='Location of pretrained model files', default='models_pretrained')
-        
+
     args = parser.parse_args()
 
     main(args)
