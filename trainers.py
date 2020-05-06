@@ -269,56 +269,57 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, p
         captions = torch.tensor(captions, device=device).long()
 
         episode_t = time.time()
-        for episode in range(episodes):
 
-            captions_in = captions[episode:episode + 1, :]
-            features_in = features[episode:episode + 1]
+        captions_in = captions#[episode:episode + 1, :]
+        features_in = features#[episode:episode + 1]
 
-            values, probs = a2c_network(features_in, captions_in)
+        value, probs = a2c_network(features_in, captions_in)
 
-            probs = F.softmax(probs, dim=2)
-            dist = probs.cpu().detach().numpy()[0, 0]
-            action = np.random.choice(probs.shape[-1], p=dist)
+        probs = F.softmax(probs, dim=2)
+        dist = probs.cpu().detach().numpy()[:,0]
 
-            gen_cap = torch.from_numpy(np.array([action])).unsqueeze(0).to(device)
-            try:
-                captions_in = torch.cat((captions_in, gen_cap), axis=1)
-            except:
-                captions_in = torch.cat((captions_in, gen_cap.long()), axis=1)
+        actions = []
+        for i in range(dist.shape[0]):
+            actions.append(np.random.choice(probs.shape[-1], p=dist[i]))
+        actions = torch.from_numpy(np.array(actions))
 
-            log_probs = torch.log(probs[0, 0, action])
+        gen_cap = actions.unsqueeze(-1).to(device)
+        try:
+            captions_in = torch.cat((captions_in, gen_cap), axis=1)
+        except:
+            captions_in = torch.cat((captions_in, gen_cap.long()), axis=1)
 
-            rewards = GetRewards(features_in, captions_in, reward_network)
-            rewards = rewards.cpu().detach().numpy()[0, 0]
+        log_probs = torch.log(probs[:,0,:].gather(1, actions.view(-1,1).to(device)))
 
-            values = torch.FloatTensor([values]).to(device)
-            rewards = torch.FloatTensor([rewards]).to(device)
-            log_probs = torch.stack([log_probs]).to(device)
+        rewards = GetRewards(features_in, captions_in, reward_network)
+        rewards = rewards.cpu().detach().numpy()[0, 0]
 
-            advantage = values - rewards
-            actorLoss = (-log_probs * advantage).mean()
-            criticLoss = 0.5 * advantage.pow(2).mean()
+        values = torch.FloatTensor([values]).to(device)
+        rewards = torch.FloatTensor([rewards]).to(device)
+        log_probs = torch.FloatTensor([log_probs]).to(device)
 
-            loss = actorLoss + criticLoss
-            episodicAvgLoss += loss.item() / episodes
+        advantage = values - rewards
+        actorLoss = (-log_probs * advantage).mean()
+        criticLoss = 0.5 * advantage.pow(2).mean()
 
-            optimizer.zero_grad()
-            loss.backward(retain_graph=True)
-            optimizer.step()
+        loss = actorLoss + criticLoss
+        episodicAvgLoss = loss.mean().item()
 
-            if episode % 1000 == 0:
-                print("[training] episode: %s, time taken: %ss" % (episode, time.time() - episode_t))
-                episode_t = time.time()
-            #     print("[training] current memory allocated: %s\t | cached memory: %s" \
-            #                     % (torch.cuda.memory_allocated() / 1024 ** 2, \
-            #                             torch.cuda.memory_cached() / 1024 ** 2))
-            #     print_garbage_collection()
+        optimizer.zero_grad()
+        loss.mean().backward(retain_graph=True)
+        optimizer.step()
 
-            # Summary Writer
-            if episode % plot_freq == 0:
-                a2c_train_writer.add_scalar('A2C Network', episodicAvgLoss, episode)
+        print("[training] epoch: %s, time taken: %ss" % (epoch, time.time() - episode_t))
+        episode_t = time.time()
+        # print("[training] current memory allocated: %s\t | cached memory: %s" \
+        #                 % (torch.cuda.memory_allocated() / 1024 ** 2, \
+        #                         torch.cuda.memory_cached() / 1024 ** 2))
+        # print_garbage_collection()
 
-        print(f"[training] epoch:{epoch} episodicAvgLoss: {episodicAvgLoss}")
+        # Summary Writer
+        a2c_train_writer.add_scalar('A2C Network', episodicAvgLoss, epoch)
+
+        print(f"[training] epoch:{epoch}, episodicAvgLoss: {episodicAvgLoss}")
         reward_network.rewrnn.init_hidden()
         a2c_network.value_network.valrnn.init_hidden()
 
@@ -335,73 +336,67 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
 
         for epoch in range(epoch_count):
             episodicAvgLoss = 0
+            episode_t = time.time()
 
             captions, features, _ = get_coco_batch(train_data, batch_size=episodes, split='train')
             features = torch.tensor(features, device=device).float()
             captions = torch.tensor(captions, device=device).long()
 
-            episode_t = time.time()
-            for episode in range(episodes):
-                log_probs = []
-                values = []
-                rewards = []
-                caption_len = np.nonzero(captions[episode] == 2)[0][0] + 1
+            log_probs = []
+            values = []
+            rewards = []
+            caplen = np.nonzero(captions == 2)[:,1].max() + 1
 
-                if caption_len - level > 1:
-                    captions_in = captions[episode:episode + 1, :]
-                    features_in = features[episode:episode + 1]
+            if (caplen - level > 1):
+                captions_in = captions[:, :caplen-level]
+                features_in = features
 
-                    for step in range(level):
-                        
-                        value, probs = a2c_network(features_in, captions_in)
+                for step in range(level):
+                    value, probs = a2c_network(features_in, captions_in)
+                    probs = F.softmax(probs, dim=2)
 
-                        probs = F.softmax(probs, dim=2)
-                        dist = probs.cpu().detach().numpy()[0, 0]
-                        action = np.random.choice(probs.shape[-1], p=dist)
+                    dist = probs.cpu().detach().numpy()[:,0]
+                    actions = []
+                    for i in range(dist.shape[0]):
+                        actions.append(np.random.choice(probs.shape[-1], p=dist[i]))
+                    actions = torch.from_numpy(np.array(actions))
 
-                        gen_cap = torch.from_numpy(np.array([action])).unsqueeze(0).to(device)
-                        try:
-                            captions_in = torch.cat((captions_in, gen_cap), axis=1)
-                        except:
-                            captions_in = torch.cat((captions_in, gen_cap.long()), axis=1)
+                    gen_cap = actions.unsqueeze(-1).to(device)
+                    captions_in = torch.cat((captions_in, gen_cap), axis=1)
+                    log_prob = torch.log(probs[:,0,:].gather(1, actions.view(-1,1).to(device)))
 
-                        log_prob = torch.log(probs[0, 0, action])
+                    reward = GetRewards(features_in, captions_in, reward_network)
 
-                        reward = GetRewards(features_in, captions_in, reward_network)
-                        reward = reward.cpu().detach().numpy()[0, 0]
+                    rewards.append(reward)
+                    values.append(value)
+                    log_probs.append(log_prob)
 
-                        rewards.append(reward)
-                        values.append(value)
-                        log_probs.append(log_prob)
+                values = torch.stack(values, axis=1).squeeze().to(device)
+                rewards = torch.stack(rewards, axis=1).squeeze().to(device)
+                log_probs = torch.stack(log_probs, axis=1).squeeze().to(device)
 
-                values = torch.FloatTensor(values).to(device)
-                rewards = torch.FloatTensor(rewards).to(device)
-                log_probs = torch.stack(log_probs).to(device)
-
-                advantage = values - rewards
-                actorLoss = (-log_probs * advantage).mean()
-                criticLoss = 0.5 * advantage.pow(2).mean()
+                advantage = values - rewards 
+                actorLoss = (-log_probs * advantage).mean(axis=1)
+                criticLoss = 0.5 * advantage.pow(2).mean(axis=1)
 
                 loss = actorLoss + criticLoss
-                episodicAvgLoss += loss.item() / episodes
+                episodicAvgLoss = loss.mean().item()
 
                 optimizer.zero_grad()
-                loss.backward(retain_graph=True)
+                loss.mean().backward(retain_graph=True)
                 optimizer.step()
 
-                if episode % 1000 == 0:
-                    print("[training] episode: %s, time taken: %ss" % (episode, time.time() - episode_t))
-                    episode_t = time.time()
-                #     print("[training] current memory allocated: %s\t | cached memory: %s" \
-                #                     % (torch.cuda.memory_allocated() / 1024 ** 2, \
-                #                             torch.cuda.memory_cached() / 1024 ** 2))
-                #     print_garbage_collection()
+            print("[training] epoch: %s, time taken: %ss" % (epoch, time.time() - episode_t))
+            episode_t = time.time()
+            # print("[training] current memory allocated: %s\t | cached memory: %s" \
+            #                 % (torch.cuda.memory_allocated() / 1024 ** 2, \
+            #                         torch.cuda.memory_cached() / 1024 ** 2))
+            # print_garbage_collection()
 
-                # Summary Writer
-                if episode % plot_freq == 0:
-                    a2c_train_curriculum_writer.add_scalar('A2C Network Curriculum', episodicAvgLoss, episode)
+            # Summary Writer
+            a2c_train_curriculum_writer.add_scalar('A2C Network Curriculum', episodicAvgLoss, epoch)
 
-            print(f"[training] epoch:{epoch} episodicAvgLoss: {episodicAvgLoss}")
+            print(f"[training] level: {level}, epoch: {epoch}, average_loss: {episodicAvgLoss}")
             reward_network.rewrnn.init_hidden()
             a2c_network.value_network.valrnn.init_hidden()
 
