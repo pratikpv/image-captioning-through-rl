@@ -91,7 +91,7 @@ def main(args):
     data = load_data(base_dir=BASE_DIR, max_train=max_train, print_keys=True)
     print_green(f'[Info] COCO dataset loaded')
 
-    if os.path.isfile(args.test_model) and os.path.split(args.test_model)[1] == "a2cNetwork.pt":
+    if os.path.isfile(args.test_model) and "a2cNetwork" in os.path.split(args.test_model)[1]:
         print_green(f'[Info] Loading A2C Network')
         a2c_network = load_a2c_models(args.test_model, data, network_paths)
         print_green(f'[Info] A2C Network loaded')

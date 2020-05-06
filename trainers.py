@@ -70,7 +70,7 @@ def GetRewards(features, captions, reward_network):
     return rewards
 
 
-def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epochs=25000):
+def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epochs=50000):
 
     value_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
 
@@ -273,7 +273,7 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, p
         captions_in = captions#[episode:episode + 1, :]
         features_in = features#[episode:episode + 1]
 
-        value, probs = a2c_network(features_in, captions_in)
+        values, probs = a2c_network(features_in, captions_in)
 
         probs = F.softmax(probs, dim=2)
         dist = probs.cpu().detach().numpy()[:,0]
@@ -292,11 +292,7 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, p
         log_probs = torch.log(probs[:,0,:].gather(1, actions.view(-1,1).to(device)))
 
         rewards = GetRewards(features_in, captions_in, reward_network)
-        rewards = rewards.cpu().detach().numpy()[0, 0]
 
-        values = torch.FloatTensor([values]).to(device)
-        rewards = torch.FloatTensor([rewards]).to(device)
-        log_probs = torch.FloatTensor([log_probs]).to(device)
 
         advantage = values - rewards
         actorLoss = (-log_probs * advantage).mean()
@@ -309,7 +305,7 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, p
         loss.mean().backward(retain_graph=True)
         optimizer.step()
 
-        print("[training] epoch: %s, time taken: %ss" % (epoch, time.time() - episode_t))
+        print("[training] epoch: %s, average_loss %s, time_taken: %ss" % (epoch, episodicAvgLoss, time.time() - episode_t))
         episode_t = time.time()
         # print("[training] current memory allocated: %s\t | cached memory: %s" \
         #                 % (torch.cuda.memory_allocated() / 1024 ** 2, \
@@ -319,7 +315,6 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, p
         # Summary Writer
         a2c_train_writer.add_scalar('A2C Network', episodicAvgLoss, epoch)
 
-        print(f"[training] epoch:{epoch}, episodicAvgLoss: {episodicAvgLoss}")
         reward_network.rewrnn.init_hidden()
         a2c_network.value_network.valrnn.init_hidden()
 
@@ -386,7 +381,7 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
                 loss.mean().backward(retain_graph=True)
                 optimizer.step()
 
-            print("[training] epoch: %s, time taken: %ss" % (epoch, time.time() - episode_t))
+            print("[training] level: %s, epoch: %s, average_loss: %s, time_taken: %ss" % (level, epoch, episodicAvgLoss, time.time() - episode_t))
             episode_t = time.time()
             # print("[training] current memory allocated: %s\t | cached memory: %s" \
             #                 % (torch.cuda.memory_allocated() / 1024 ** 2, \
@@ -396,7 +391,6 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
             # Summary Writer
             a2c_train_curriculum_writer.add_scalar('A2C Network Curriculum', episodicAvgLoss, epoch)
 
-            print(f"[training] level: {level}, epoch: {epoch}, average_loss: {episodicAvgLoss}")
             reward_network.rewrnn.init_hidden()
             a2c_network.value_network.valrnn.init_hidden()
 
