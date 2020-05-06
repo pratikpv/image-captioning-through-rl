@@ -1,0 +1,11 @@
+Reward Network:
+	50000 Training Epochs
+	Best Loss - 3.7344589233398438
+
+Policy Network
+	100000 Training Epochs
+	Best Loss - 16.278623580932617
+
+Value Network
+	25000 Training Epochs
+	Best Loss - 0.00016351390513591468
