@@ -87,7 +87,7 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epo
 
     value_network = ValueNetwork(train_data["word_to_idx"]).to(device)
     criterion = nn.MSELoss().to(device)
-    optimizer = optim.Adam(value_network.parameters(), lr=0.0001)
+    optimizer = optim.Adam(value_network.parameters(), lr=0.001)
     value_network.train(mode=True)
 
     bestLoss = float('inf')
@@ -131,7 +131,7 @@ def train_policy_network(train_data, network_paths, plot_dir, batch_size=256, ep
 
     policy_network = PolicyNetwork(train_data["word_to_idx"]).to(device)
     criterion = nn.CrossEntropyLoss().to(device)
-    optimizer = optim.Adam(policy_network.parameters(), lr=0.0001)
+    optimizer = optim.Adam(policy_network.parameters(), lr=0.001)
 
     policy_writer = SummaryWriter(log_dir=os.path.join(plot_dir, 'runs'))
 
@@ -232,7 +232,7 @@ def train_a2c_network(train_data, save_paths, network_paths, plot_dir, epoch_cou
 
     a2c_network = AdvantageActorCriticNetwork(value_network, policy_network).to(device)
     a2c_network.train(True)
-    optimizer = optim.Adam(a2c_network.parameters(), lr=0.0001)
+    optimizer = optim.Adam(a2c_network.parameters(), lr=0.001)
 
     print(f'[Training] train_data len = {len(train_data["train_captions"])}')
     print(f'[Training] episodes = {episodes}')
