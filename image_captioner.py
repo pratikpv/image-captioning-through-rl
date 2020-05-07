@@ -19,7 +19,7 @@ RESULTS_FILE = 'results.txt'
 
 BEST_SCORE_FILENAME = 'best_scores.txt'
 BEST_SCORE_IMAGES_PATH = 'best_scores_images'
-CURRICILUM_LEVELS = [2,3,5,7,11,13]
+CURRICILUM_LEVELS = [3,6,9,12,15]#[2,3,5,7,11,13]
 
 def setup(args):
 

@@ -122,7 +122,8 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epo
 
         value_network.valrnn.hidden_cell[0].detach_()
         value_network.valrnn.hidden_cell[1].detach_()
-        reward_network.rewrnn.hidden_cell.detach_()
+        reward_network.rewrnn.hidden_cell[0].detach_()
+        reward_network.rewrnn.hidden_cell[1].detach_()
     
     return value_network
 
@@ -189,7 +190,8 @@ def train_reward_network(train_data, network_paths, plot_dir, batch_size=256, ep
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        reward_network.rewrnn.hidden_cell.detach_()
+        reward_network.rewrnn.hidden_cell[0].detach_()
+        reward_network.rewrnn.hidden_cell[1].detach_()
 
     return reward_network
 
