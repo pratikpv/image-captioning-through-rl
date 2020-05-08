@@ -90,10 +90,11 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epo
     optimizer = optim.Adam(value_network.parameters(), lr=0.0001)
     value_network.train(mode=True)
 
-    bestLoss = float('inf')
-
+    best_loss = float('inf')
     print_green(f'[Training] Training Value Network')
-    for epoch in tqdm(range(epochs), desc='Training Value Network'):
+
+    progress = tqdm(range(epochs), desc='Training Value Network: Best Loss %s' % best_loss)
+    for epoch in progress:
         captions, features, _ = get_coco_batch(train_data, batch_size=batch_size, split='train')
         features = torch.tensor(features, device=device).float()
 
@@ -109,10 +110,10 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epo
         # Compute the loss for the value and the reward
         loss = criterion(values, rewards)
 
-        if loss.item() < bestLoss:
-            bestLoss = loss.item()
+        if loss.item() < best_loss:
+            best_loss = loss.item()
             torch.save(value_network.state_dict(), network_paths["value_network"])
-            #print("epoch:", epoch, "loss:", loss.item())
+            progress.set_description_str('Training Value Network: Best Loss %s' % best_loss)
 
         value_writer.add_scalar('Value Network-loss', loss, epoch)
 
@@ -135,9 +136,11 @@ def train_policy_network(train_data, network_paths, plot_dir, batch_size=256, ep
 
     policy_writer = SummaryWriter(log_dir=os.path.join(plot_dir, 'runs'))
 
-    bestLoss = float("inf")
+    best_loss = float("inf")
     print_green(f'[Training] Training Policy Network')
-    for epoch in tqdm(range(epochs),desc='Training Policy Network'):
+    progress = tqdm(range(epochs), desc='Training Policy Network: Best Loss %s' % best_loss)
+
+    for epoch in progress:
         captions, features, _ = get_coco_batch(train_data, batch_size=batch_size, split='train')
         features = torch.tensor(features, device=device).float().unsqueeze(0)
         captions_in = torch.tensor(captions[:, :-1], device=device).long()
@@ -146,13 +149,14 @@ def train_policy_network(train_data, network_paths, plot_dir, batch_size=256, ep
 
         loss = 0
         for i in range(batch_size):
+            # '2' is the end of segment, hence points to caption length
             caplen = np.nonzero(captions[i] == 2)[0][0] + 1
             loss += (caplen / batch_size) * criterion(output[i][:caplen], captions_out[i][:caplen])
 
-        if loss.item() < bestLoss:
-            bestLoss = loss.item()
+        if loss.item() < best_loss:
+            best_loss = loss.item()
             torch.save(policy_network.state_dict(), network_paths["policy_network"])
-            #print("epoch:", epoch, "loss:", loss.item())
+            progress.set_description_str('Training Policy Network: Best Loss %s' % best_loss)
 
         policy_writer.add_scalar('Policy Network-loss', loss, epoch)
 
@@ -167,11 +171,13 @@ def train_reward_network(train_data, network_paths, plot_dir, batch_size=256, ep
 
     reward_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
     reward_network = RewardNetwork(train_data["word_to_idx"]).to(device)
-    optimizer = optim.Adam(reward_network.parameters(), lr=0.001)
+    optimizer = optim.Adam(reward_network.parameters(), lr=0.0001)
 
-    bestLoss = float('inf')
+    best_loss = float('inf')
     print_green(f'[Training] Training Reward Network')
-    for epoch in tqdm(range(epochs), desc='Training Reward Network'):
+    progress = tqdm(range(epochs), desc='Training Reward Network: Best Loss %s' % best_loss)
+
+    for epoch in progress:
 
         captions, features, _ = get_coco_batch(train_data, batch_size=batch_size, split='train')
         features = torch.tensor(features, device=device).float()
@@ -179,10 +185,10 @@ def train_reward_network(train_data, network_paths, plot_dir, batch_size=256, ep
         ve, se = reward_network(features, captions)
         loss = VisualSemanticEmbeddingLoss(ve, se)
 
-        if loss.item() < bestLoss:
-            bestLoss = loss.item()
+        if loss.item() < best_loss:
+            best_loss = loss.item()
             torch.save(reward_network.state_dict(), network_paths["reward_network"])
-            #print("epoch:", epoch, "loss:", loss.item())
+            progress.set_description_str('Training Reward Network: Best Loss %s' % best_loss)
 
         reward_writer.add_scalar('Reward Network-loss', loss, epoch)
 
@@ -255,14 +261,16 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, e
 
     a2c_train_writer = SummaryWriter(log_dir=os.path.join(plot_dir,'runs'))
 
-    for epoch in tqdm(range(epoch_count),desc='Training A2C Network'):
+    print_green(f'[Training] Training Advantage Actor-Critic Network')
+    best_loss = float('inf')
+    progress = tqdm(range(epoch_count), desc='Training A2C Network: Advantage: %s, Best Loss %s' % (None, best_loss))
+    
+    for epoch in progress:
         episodic_avg_loss = 0
 
         captions, features, _ = get_coco_batch(train_data, batch_size=episodes, split='train')
         features = torch.tensor(features, device=device).float()
         captions = torch.tensor(captions, device=device).long()
-
-        episode_t = time.time()
 
         captions_in = captions
         features_in = features
@@ -287,7 +295,6 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, e
 
         rewards = GetRewards(features_in, captions_in, reward_network)
 
-
         advantage = values - rewards
         actorLoss = (-log_probs * advantage).mean()
         criticLoss = 0.5 * advantage.pow(2).mean()
@@ -299,16 +306,14 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, e
         loss.mean().backward(retain_graph=True)
         optimizer.step()
 
-        #print("[Training] epoch: %s, average_loss %s, time_taken: %ss" % (epoch, episodic_avg_loss, time.time() - episode_t))
-        episode_t = time.time()
-        # print("[Training] current memory allocated: %s\t | cached memory: %s" \
-        #                 % (torch.cuda.memory_allocated() / 1024 ** 2, \
-        #                         torch.cuda.memory_cached() / 1024 ** 2))
-        # print_garbage_collection()
+        if episodic_avg_loss < best_loss:
+            best_loss = episodic_avg_loss
+        progress.set_description_str('Training A2C Network: Advantage: %s, Best Loss %s' % (advantage.mean(), best_loss))
 
         # Summary Writer
         a2c_train_writer.add_scalar('A2C Network-episodic-loss', episodic_avg_loss, epoch)
         a2c_train_writer.add_scalar('A2C Network-episodic-mean-rewards', rewards.mean(), epoch)
+        a2c_train_writer.add_scalar('A2C Network-episodic-mean-advantage', advantage.mean(), epoch)
 
         reward_network.rewrnn.init_hidden()
         a2c_network.value_network.valrnn.init_hidden()
@@ -320,14 +325,17 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
 
     a2c_train_curriculum_writer = SummaryWriter(log_dir=os.path.join(plot_dir,'runs'))
 
-    print(f'[Training] mode set to curriculum training using levels: {curriculum}')
+    print_green(f'[Training] Training Advantage Actor-Critic Network')
+    print_green(f'[Training] mode set to curriculum training using levels: {curriculum}')
 
     for level in curriculum:
+
         print_green(f'[Training] Training curriculum level: {level}')
-        desc_tqdm = 'Training curriculum level ' + str(level)
-        for epoch in tqdm(range(epoch_count), desc=desc_tqdm):
+        best_loss = float('inf')
+        progress = tqdm(range(epoch_count), desc='Training A2C Curriculum Level: %s, Advantage: %s, Best Loss: %s' % (level, None, best_loss))
+        
+        for epoch in progress:
             episodic_avg_loss = 0
-            #episode_t = time.time()
 
             captions, features, _ = get_coco_batch(train_data, batch_size=episodes, split='train')
             features = torch.tensor(features, device=device).float()
@@ -373,6 +381,10 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
                 loss = actorLoss + criticLoss
                 episodic_avg_loss = loss.mean().item()
 
+                if episodic_avg_loss < best_loss:
+                    best_loss = episodic_avg_loss
+                progress.set_description_str('Training A2C Curriculum Level: %s, Advantage: %s, Best Loss: %s' % (level, advantage.mean(), best_loss))
+
                 optimizer.zero_grad()
                 loss.mean().backward(retain_graph=True)
                 optimizer.step()
@@ -382,14 +394,8 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
                 a2c_train_curriculum_writer.add_scalar(writer_var_name, episodic_avg_loss, epoch)
                 writer_var_name = 'A2C Curriculum' + ' Level-' + str(level) + '-mean-rewards'
                 a2c_train_curriculum_writer.add_scalar(writer_var_name, rewards.mean(), epoch)
-
-            #print("[Training] level: %s, epoch: %s, average_loss: %s, time_taken: %ss" % (level, epoch, episodic_avg_loss, time.time() - episode_t))
-            #episode_t = time.time()
-            # print("[Training] current memory allocated: %s\t | cached memory: %s" \
-            #                 % (torch.cuda.memory_allocated() / 1024 ** 2, \
-            #                         torch.cuda.memory_cached() / 1024 ** 2))
-            # print_garbage_collection()
-
+                writer_var_name = 'A2C Curriculum' + ' Level-' + str(level) + '-mean-advantage'
+                a2c_train_curriculum_writer.add_scalar(writer_var_name, advantage.mean(), epoch)
 
             reward_network.rewrnn.init_hidden()
             a2c_network.value_network.valrnn.init_hidden()
