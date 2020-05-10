@@ -31,7 +31,8 @@ class PolicyNetwork(nn.Module):
 
         self.cnn2linear = nn.Linear(input_dim, hidden_dim)
         self.lstm = nn.LSTM(wordvec_dim, hidden_dim, batch_first=True, bidirectional=True)
-        self.linear2vocab = nn.Linear(hidden_dim*2, vocab_size)
+        self.linear2vocab = nn.Linear(hidden_dim, vocab_size)
+
 
     def forward(self, features, captions):
 
@@ -40,6 +41,8 @@ class PolicyNetwork(nn.Module):
         cell_init = torch.zeros_like(hidden_init)
 
         output, _ = self.lstm(input_captions, (hidden_init, cell_init))
+        output = torch.split(output, (output.shape[-1]/2), dim=(len(output.shape)-1))
+        output = torch.stack(output).mean(dim=0)
         output = self.linear2vocab(output)
 
         return output
@@ -84,17 +87,20 @@ class ValueNetwork(nn.Module):
     def __init__(self, word_to_idx, pretrained_embeddings):
 
         super(ValueNetwork, self).__init__()
-        self.valrnn = ValueNetworkRNN(word_to_idx)
-        self.linear1 = nn.Linear(1536, 512)
+        self.valrnn = ValueNetworkRNN(word_to_idx, pretrained_embeddings=pretrained_embeddings)
+        self.linear1 = nn.Linear(1024, 512)
         self.linear2 = nn.Linear(512, 1)
 
     def forward(self, features, captions):
 
         for t in range(captions.shape[1]):
             value_rnn_output = self.valrnn(captions[:, t])
-        value_rnn_output = value_rnn_output.squeeze(0).squeeze(1)
-        state = torch.cat((features, value_rnn_output), dim=1)
 
+        value_rnn_output = torch.split(value_rnn_output, (value_rnn_output.shape[-1]/2), dim=(len(value_rnn_output.shape)-1))
+        value_rnn_output = torch.stack(value_rnn_output).mean(dim=0)
+        value_rnn_output = value_rnn_output.squeeze(0).squeeze(1)
+
+        state = torch.cat((features, value_rnn_output), dim=1)
         output = self.linear1(state)
         output = self.linear2(output)
 
@@ -142,13 +148,16 @@ class RewardNetwork(nn.Module):
         super(RewardNetwork, self).__init__()
         self.rewrnn = RewardNetworkRNN(word_to_idx, pretrained_embeddings=pretrained_embeddings)
         self.visual_embed = nn.Linear(512, 512)
-        self.semantic_embed = nn.Linear(1024, 512)
+        self.semantic_embed = nn.Linear(512, 512)
 
     def forward(self, features, captions):
-
         for t in range(captions.shape[1]):
             reward_rnn_output = self.rewrnn(captions[:, t])
+
+        reward_rnn_output = torch.split(reward_rnn_output, (reward_rnn_output.shape[-1]/2), dim=(len(reward_rnn_output.shape)-1))
+        reward_rnn_output = torch.stack(reward_rnn_output).mean(dim=0)
         reward_rnn_output = reward_rnn_output.squeeze(0).squeeze(1)
+
         se = self.semantic_embed(reward_rnn_output)
         ve = self.visual_embed(features)
 
