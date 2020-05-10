@@ -3,8 +3,6 @@ import torch.nn as nn
 from torch.nn import functional as F
 import numpy as np
 
-from utilities import get_pretrained_vectors
-
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 MAX_SEQ_LEN = 17
@@ -21,11 +19,8 @@ class PolicyNetwork(nn.Module):
         vocab_size = len(word_to_idx)
 
         if pretrained_embeddings is not None:
-            vectors = get_pretrained_vectors(pretrained_embeddings)
-            self.caption_embedding = nn.Embedding.from_pretrained(vectors)
-            for param in self.caption_embedding.parameters():
-                param.requires_grad = False
-            wordvec_dim = vectors.shape[1]
+            self.caption_embedding = nn.Embedding.from_pretrained(pretrained_embeddings, freeze=True)
+            wordvec_dim = pretrained_embeddings.shape[1]
         else:
             self.caption_embedding = nn.Embedding(vocab_size, wordvec_dim)
 
@@ -56,11 +51,8 @@ class ValueNetworkRNN(nn.Module):
         vocab_size = len(word_to_idx)
 
         if pretrained_embeddings is not None:
-            vectors = get_pretrained_vectors(pretrained_embeddings)
-            self.caption_embedding = nn.Embedding.from_pretrained(vectors)
-            for param in self.caption_embedding.parameters():
-                param.requires_grad = False
-            wordvec_dim = vectors.shape[1]
+            self.caption_embedding = nn.Embedding.from_pretrained(pretrained_embeddings, freeze=True)
+            wordvec_dim = pretrained_embeddings.shape[1]
         else:
             self.caption_embedding = nn.Embedding(vocab_size, wordvec_dim)
 
@@ -112,11 +104,8 @@ class RewardNetworkRNN(nn.Module):
         vocab_size = len(word_to_idx)
 
         if pretrained_embeddings is not None:
-            vectors = get_pretrained_vectors(pretrained_embeddings)
-            self.caption_embedding = nn.Embedding.from_pretrained(vectors)
-            for param in self.caption_embedding.parameters():
-                param.requires_grad = False
-            wordvec_dim = vectors.shape[1]
+            self.caption_embedding = nn.Embedding.from_pretrained(pretrained_embeddings, freeze=True)
+            wordvec_dim = pretrained_embeddings.shape[1]
         else:
             self.caption_embedding = nn.Embedding(vocab_size, wordvec_dim)
 

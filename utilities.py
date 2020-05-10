@@ -8,6 +8,7 @@ from PIL import Image
 from io import BytesIO
 import urllib.request
 
+import numpy as np
 import gensim
 import gensim.downloader as api
 from gensim.models import KeyedVectors
@@ -235,20 +236,27 @@ def calculate_a2cNetwork_score(image_caption_data, save_paths):
 
 
 def get_embeddings(emb_type):
-
+    
     embeddings = None
+    emb_name = ""
+
     if emb_type == "conceptnet":
-        embeddings = api.load("conceptnet-numberbatch-17-06-300")
+        emb_name = "conceptnet-numberbatch-17-06-300"
     elif emb_type == "fasttext":
-        embeddings = api.load("fasttext-wiki-news-subwords-300")
+        emb_name = "fasttext-wiki-news-subwords-300"
     elif emb_type == "word2vec":
-        embeddings = api.load("word2vec-google-news-300")
+        emb_name = "word2vec-google-news-300"
     elif emb_type == "glove":
-        embeddings = api.load("glove-wiki-gigaword-300")
+        emb_name = "glove-wiki-gigaword-300"
+    elif os.path.isfile(emb_name):
+        return emb_name
+    
+    embeddings = api.load(emb_name)
+
     return embeddings
 
 
-def get_pretrained_vectors(path):
+def get_embedding_model(path):
 
     if isinstance(path, gensim.models.keyedvectors.BaseKeyedVectors):
         model = path
@@ -259,4 +267,26 @@ def get_pretrained_vectors(path):
     else:
         raise ValueError("Got %s as an argument, expect either a path to embeddings or an embedding model" % type(path))
 
-    return model.vectors
+    return model
+
+
+def get_vectors_by_by_vocab(model, idx_to_word):
+
+    new_vectors = np.empty((len(idx_to_word), model.vectors.shape[1]), dtype=np.float32)
+
+    for idx, word in idx_to_word.items():
+        new_vectors[idx] = model[word]
+    
+    return new_vectors
+
+
+def load_word_embeddings(embedding_type, target_idx_to_word):
+
+    if embedding_type == "none":
+        return None
+    
+    embeddings = get_embeddings(embedding_type)
+    model = get_embedding_model(embeddings)
+    vectors = get_vectors_by_by_vocab(model, target_idx_to_word)
+
+    return vectors
