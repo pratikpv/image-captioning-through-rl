@@ -73,19 +73,19 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epo
 
     value_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
 
-    reward_network = RewardNetwork(train_data["word_to_idx"]).to(device)
+    reward_network = RewardNetwork(train_data["word_to_idx"], train_data["embeddings"]).to(device)
     reward_network.load_state_dict(torch.load(network_paths["reward_network"], map_location=device))
     for param in reward_network.parameters():
         param.require_grad = False
 
 
-    policy_network = PolicyNetwork(train_data["word_to_idx"]).to(device)
+    policy_network = PolicyNetwork(train_data["word_to_idx"], train_data["embeddings"]).to(device)
     policy_network.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
     for param in policy_network.parameters():
         param.require_grad = False
 
 
-    value_network = ValueNetwork(train_data["word_to_idx"]).to(device)
+    value_network = ValueNetwork(train_data["word_to_idx"], train_data["embeddings"]).to(device)
     criterion = nn.MSELoss().to(device)
     optimizer = optim.Adam(value_network.parameters(), lr=0.001)
     value_network.train(mode=True)
@@ -131,7 +131,7 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epo
 
 def train_policy_network(train_data, network_paths, plot_dir, batch_size=256, epochs=100000):
 
-    policy_network = PolicyNetwork(train_data["word_to_idx"]).to(device)
+    policy_network = PolicyNetwork(train_data["word_to_idx"], train_data["embeddings"]).to(device)
     criterion = nn.CrossEntropyLoss().to(device)
     optimizer = optim.Adam(policy_network.parameters(), lr=0.001)
 
@@ -171,7 +171,7 @@ def train_policy_network(train_data, network_paths, plot_dir, batch_size=256, ep
 def train_reward_network(train_data, network_paths, plot_dir, batch_size=256, epochs=50000):
 
     reward_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
-    reward_network = RewardNetwork(train_data["word_to_idx"]).to(device)
+    reward_network = RewardNetwork(train_data["word_to_idx"], train_data["embeddings"]).to(device)
     optimizer = optim.Adam(reward_network.parameters(), lr=0.0001)
 
     best_loss = float('inf')
@@ -207,10 +207,6 @@ def train_a2c_network(train_data, save_paths, network_paths, plot_dir, epoch_cou
     model_save_path = save_paths["model_path"]
     results_save_path = save_paths["results_path"]
 
-    reward_network = RewardNetwork(train_data["word_to_idx"]).to(device)
-    policy_network = PolicyNetwork(train_data["word_to_idx"]).to(device)
-    value_network = ValueNetwork(train_data["word_to_idx"]).to(device)
-
     if retrain_all:
         print_green(f'[Training] Training all the networks')
         reward_network = train_reward_network(train_data, network_paths, plot_dir)
@@ -220,23 +216,29 @@ def train_a2c_network(train_data, save_paths, network_paths, plot_dir, epoch_cou
 
     else:
         try:
+            reward_network = RewardNetwork(train_data["word_to_idx"], train_data["embeddings"]).to(device)
             reward_network.load_state_dict(torch.load(network_paths["reward_network"], map_location=device))
             print(f'[Training] loaded reward network')
         except FileNotFoundError:
             print(f'[Training] reward network not found')
             reward_network = train_reward_network(train_data, network_paths, plot_dir)
         try:
+            policy_network = PolicyNetwork(train_data["word_to_idx"], train_data["embeddings"]).to(device)
             policy_network.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
             print(f'[Training] loaded policy network')
         except FileNotFoundError:
             print(f'[Training] policy network not found')
             policy_network = train_policy_network(train_data, network_paths, plot_dir)
         try:
+            value_network = ValueNetwork(train_data["word_to_idx"], train_data["embeddings"]).to(device)
             value_network.load_state_dict(torch.load(network_paths["value_network"], map_location=device))
             print(f'[Training] loaded value network')
         except FileNotFoundError:
             print(f'[Training] value network not found')
             value_network = train_value_network(train_data, network_paths, plot_dir)
+
+    for param in reward_network.parameters():
+        param.require_grad = False
 
     a2c_network = AdvantageActorCriticNetwork(value_network, policy_network).to(device)
     a2c_network.train(True)
@@ -258,6 +260,7 @@ def train_a2c_network(train_data, save_paths, network_paths, plot_dir, epoch_cou
         f.write('\n' + '-' * 10 + ' network ' + '-' * 10 + '\n')
 
     return a2c_network
+
 
 def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, episodes, epoch_count):
 
@@ -317,8 +320,7 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, e
         a2c_train_writer.add_scalar('A2C Network-episodic-mean-rewards', rewards.mean(), epoch)
         a2c_train_writer.add_scalar('A2C Network-episodic-mean-advantage', advantage.mean(), epoch)
 
-        reward_network.rewrnn.init_hidden()
-        a2c_network.value_network.valrnn.init_hidden()
+        a2c_network.value_network.valrnn.hidden_cell.detach()
 
     return a2c_network
 
@@ -399,8 +401,7 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
                 writer_var_name = 'A2C Curriculum' + ' Level-' + str(level) + '-mean-advantage'
                 a2c_train_curriculum_writer.add_scalar(writer_var_name, advantage.mean(), epoch)
 
-            reward_network.rewrnn.init_hidden()
-            a2c_network.value_network.valrnn.init_hidden()
+            a2c_network.value_network.valrnn.hidden_cell.detach()
 
     return a2c_network
 
@@ -439,7 +440,7 @@ def test_a2c_network(a2c_network, test_data, image_caption_data, data_size, vali
             generated_captions_file.flush()
             image_url_file.flush()
 
-            a2c_network.value_network.valrnn.init_hidden()
+            a2c_network.value_network.valrnn.hidden_cell.detach()
 
         real_captions_file.close()
         generated_captions_file.close()
