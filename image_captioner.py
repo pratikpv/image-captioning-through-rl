@@ -88,7 +88,7 @@ def main(args):
             else:
                 curriculum = None
             
-            data["embeddings"] = get_embeddings(args.word2vec)
+            data["embeddings"] = load_word_embeddings(args.word2vec, data["idx_to_word"])
             a2c_network = train_a2c_network(train_data=data, \
                             save_paths=save_paths, network_paths=network_paths, \
                                 plot_dir=LOG_DIR, epoch_count=args.epochs, episodes=args.episodes, \
@@ -128,7 +128,8 @@ if __name__ == "__main__":
     parser.add_argument('--test_model', type=str, help='Test a pretrained advantage actor critic model', default="")
     parser.add_argument('--pretrained_path', type=str, help='Location of pretrained model files', default="models_pretrained")
 
-    parser.add_argument('--word2vec', type=str, choices=["none", "conceptnet", "word2vec", "fasttext", "glove"], help='Word Embedding model to use', default="none")
+    # choices: ["none", "conceptnet", "word2vec", "fasttext", "glove", "path/to/word/embedding/model"]
+    parser.add_argument('--word2vec', type=str, help='Word Embedding model to use', default="none")
     args = parser.parse_args()
 
     main(args)
