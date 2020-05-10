@@ -2,9 +2,16 @@ import h5py
 import json
 import requests
 import gc
+import os
+
 from PIL import Image
 from io import BytesIO
 import urllib.request
+
+import gensim
+import gensim.downloader as api
+from gensim.models import KeyedVectors
+
 from models import *
 from metrics import *
 
@@ -226,3 +233,30 @@ def calculate_a2cNetwork_score(image_caption_data, save_paths):
         f.write(network_score)
         f.write('\n' + '-' * 10 + ' results ' + '-' * 10 + '\n')
 
+
+def get_embeddings(emb_type):
+
+    embeddings = None
+    if emb_type == "conceptnet":
+        embeddings = api.load("conceptnet-numberbatch-17-06-300")
+    elif emb_type == "fasttext":
+        embeddings = api.load("fasttext-wiki-news-subwords-300")
+    elif emb_type == "word2vec":
+        embeddings = api.load("word2vec-google-news-300")
+    elif emb_type == "glove":
+        embeddings = api.load("glove-wiki-gigaword-300")
+    return embeddings
+
+
+def get_pretrained_vectors(path):
+
+    if isinstance(path, gensim.models.keyedvectors.BaseKeyedVectors):
+        model = path
+    elif isinstance(path, gensim.models.base_any2vec.BaseWordEmbeddingsModel):
+        model = path.wv
+    elif os.path.isfile(path):
+        model = KeyedVectors.load_word2vec_format(path)
+    else:
+        raise ValueError("Got %s as an argument, expect either a path to embeddings or an embedding model" % type(path))
+
+    return model.vectors
