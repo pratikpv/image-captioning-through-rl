@@ -83,7 +83,7 @@ class ValueNetwork(nn.Module):
     def __init__(self, word_to_idx, pretrained_embeddings):
 
         super(ValueNetwork, self).__init__()
-        self.valrnn = ValueNetworkRNN(word_to_idx)
+        self.valrnn = ValueNetworkRNN(word_to_idx, pretrained_embeddings=pretrained_embeddings)
         self.linear1 = nn.Linear(1024, 512)
         self.linear2 = nn.Linear(512, 1)
 
