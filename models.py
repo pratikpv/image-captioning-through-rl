@@ -42,7 +42,7 @@ class PolicyNetwork(nn.Module):
 
         output, _ = self.lstm(input_captions, (hidden_init, cell_init))
         output = torch.split(output, (output.shape[-1]/2), dim=(len(output.shape)-1))
-        output = torch.stack(output).mean(dim=0)
+        output = torch.stack(output).sum(dim=0)
         output = self.linear2vocab(output)
 
         return output
@@ -97,7 +97,7 @@ class ValueNetwork(nn.Module):
             value_rnn_output = self.valrnn(captions[:, t])
 
         value_rnn_output = torch.split(value_rnn_output, (value_rnn_output.shape[-1]/2), dim=(len(value_rnn_output.shape)-1))
-        value_rnn_output = torch.stack(value_rnn_output).mean(dim=0)
+        value_rnn_output = torch.stack(value_rnn_output).sum(dim=0)
         value_rnn_output = value_rnn_output.squeeze(0).squeeze(1)
 
         state = torch.cat((features, value_rnn_output), dim=1)
@@ -128,15 +128,15 @@ class RewardNetworkRNN(nn.Module):
             self.caption_embedding = nn.Embedding(vocab_size, wordvec_dim)
 
         self.init_hidden()
-        self.lstm = nn.LSTM(wordvec_dim, hidden_dim, bidirectional=True)
+        self.gru = nn.GRU(wordvec_dim, hidden_dim, bidirectional=True)
 
     def init_hidden(self):
-        self.hidden_cell = (torch.zeros(2, 1, self.hidden_dim).to(device), torch.zeros(2, 1, self.hidden_dim).to(device))
+        self.hidden_cell = torch.zeros(2, 1, self.hidden_dim).to(device)
 
     def forward(self, captions):
 
         input_captions = self.caption_embedding(captions)
-        output, self.hidden_cell = self.lstm(input_captions.view(len(input_captions), 1, -1), self.hidden_cell)
+        output, self.hidden_cell = self.gru(input_captions.view(len(input_captions), 1, -1), self.hidden_cell)
 
         return output
 
@@ -155,7 +155,7 @@ class RewardNetwork(nn.Module):
             reward_rnn_output = self.rewrnn(captions[:, t])
 
         reward_rnn_output = torch.split(reward_rnn_output, (reward_rnn_output.shape[-1]/2), dim=(len(reward_rnn_output.shape)-1))
-        reward_rnn_output = torch.stack(reward_rnn_output).mean(dim=0)
+        reward_rnn_output = torch.stack(reward_rnn_output).sum(dim=0)
         reward_rnn_output = reward_rnn_output.squeeze(0).squeeze(1)
 
         se = self.semantic_embed(reward_rnn_output)
