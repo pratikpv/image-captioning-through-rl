@@ -12,6 +12,7 @@ import numpy as np
 import gensim
 import gensim.downloader as api
 from gensim.models import KeyedVectors
+from gensim.utils import simple_preprocess
 
 from models import *
 from metrics import *
@@ -235,6 +236,15 @@ def calculate_a2cNetwork_score(image_caption_data, save_paths):
         f.write('\n' + '-' * 10 + ' results ' + '-' * 10 + '\n')
 
 
+def get_preprocessed_corpus(base_dir):
+
+    data = load_data(base_dir=base_dir, max_train=None, print_keys=False)
+    idx_to_word = data["idx_to_word"]
+    corpus_data = [simple_preprocess(" ".join([idx_to_word[d] for d in sent])) for sent in data["train_captions"]]
+    corpus_data += [simple_preprocess(" ".join([idx_to_word[d] for d in sent])) for sent in data["val_captions"]]
+
+    return corpus_data
+
 def get_embeddings(emb_type):
     
     embeddings = None
@@ -270,23 +280,43 @@ def get_embedding_model(path):
     return model
 
 
-def get_vectors_by_by_vocab(model, idx_to_word):
+def get_vectors_by_by_vocab(model, word_to_idx):
 
+    idx_to_word = {i: w for w, i in word_to_idx.items()}
     new_vectors = np.empty((len(idx_to_word), model.vectors.shape[1]), dtype=np.float32)
+    curr_vecs = []
 
     for idx, word in idx_to_word.items():
-        new_vectors[idx] = model[word]
-    
+        try:
+            new_vectors[idx] = model[word]
+            curr_vecs.append(model[word])
+        except KeyError:
+            # Initialize randomly
+            if len(curr_vecs) == 0:
+                new_vectors[idx] = np.random.rand(1, model.vectors.shape[1])
+            # Initialize with mean of all vectors
+            else:
+                new_vectors[idx] = np.array(curr_vecs).mean(axis=0)
+
     return new_vectors
 
 
-def load_word_embeddings(embedding_type, target_idx_to_word):
+def load_word_embeddings(embedding_type, target_data, train_corpus=None):
 
     if embedding_type == "none":
         return None
-    
-    embeddings = get_embeddings(embedding_type)
-    model = get_embedding_model(embeddings)
-    vectors = get_vectors_by_by_vocab(model, target_idx_to_word)
+
+    if embedding_type == "fasttext":
+        model = gensim.models.FastText(sg=1, size=300, min_count=1, workers=56, word_ngrams=1)
+    else:
+        model = gensim.models.Word2Vec(sg=1, size=300, min_count=1, workers=56)
+
+    model.build_vocab(train_corpus)
+
+    print_green(f'[Info] Training Word Embeddings')
+    model.train(train_corpus, total_examples=model.corpus_count, epochs=10, report_delay=5)
+    print_green(f'[Info] Finished Training Word Embeddings')
+
+    vectors = get_vectors_by_by_vocab(model.wv, target_data["word_to_idx"])
 
     return vectors
