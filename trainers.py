@@ -311,12 +311,12 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, e
 
         if episodic_avg_loss < best_loss:
             best_loss = episodic_avg_loss
-        progress.set_description_str('Training A2C Network: Advantage: %s, Best Loss %s' % (advantage.mean(), best_loss))
+        progress.set_description_str('Training A2C Network: Advantage: %s, Best Loss %s' % (advantage.mean().item(), best_loss))
 
         # Summary Writer
         a2c_train_writer.add_scalar('A2C Network-episodic-loss', episodic_avg_loss, epoch)
         a2c_train_writer.add_scalar('A2C Network-episodic-mean-rewards', rewards.mean(), epoch)
-        a2c_train_writer.add_scalar('A2C Network-episodic-mean-advantage', advantage.mean(), epoch)
+        a2c_train_writer.add_scalar('A2C Network-episodic-mean-advantage', advantage.mean().item(), epoch)
 
         a2c_network.value_network.valrnn.hidden_cell[0].detach_()
         a2c_network.value_network.valrnn.hidden_cell[1].detach_()
@@ -386,7 +386,7 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
 
                 if episodic_avg_loss < best_loss:
                     best_loss = episodic_avg_loss
-                progress.set_description_str('Training A2C Curriculum Level: %s, Advantage: %s, Best Loss: %s' % (level, advantage.mean(), best_loss))
+                progress.set_description_str('Training A2C Curriculum Level: %s, Advantage: %s, Best Loss: %s' % (level, advantage.mean().item(), best_loss))
 
                 optimizer.zero_grad()
                 loss.mean().backward(retain_graph=True)
@@ -398,7 +398,7 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
                 writer_var_name = 'A2C Curriculum' + ' Level-' + str(level) + '-mean-rewards'
                 a2c_train_curriculum_writer.add_scalar(writer_var_name, rewards.mean(), epoch)
                 writer_var_name = 'A2C Curriculum' + ' Level-' + str(level) + '-mean-advantage'
-                a2c_train_curriculum_writer.add_scalar(writer_var_name, advantage.mean(), epoch)
+                a2c_train_curriculum_writer.add_scalar(writer_var_name, advantage.mean().item(), epoch)
 
             a2c_network.value_network.valrnn.hidden_cell[0].detach_()
             a2c_network.value_network.valrnn.hidden_cell[1].detach_()
