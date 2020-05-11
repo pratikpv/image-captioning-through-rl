@@ -36,7 +36,7 @@ class PolicyNetwork(nn.Module):
         cell_init = torch.zeros_like(hidden_init)
 
         output, _ = self.lstm(input_captions, (hidden_init, cell_init))
-        output = torch.split(output, (output.shape[-1]/2), dim=(len(output.shape)-1))
+        output = torch.split(output, int(output.shape[-1]/2), dim=(len(output.shape)-1))
         output = torch.stack(output).sum(dim=0)
         output = self.linear2vocab(output)
 
@@ -88,7 +88,7 @@ class ValueNetwork(nn.Module):
         for t in range(captions.shape[1]):
             value_rnn_output = self.valrnn(captions[:, t])
 
-        value_rnn_output = torch.split(value_rnn_output, (value_rnn_output.shape[-1]/2), dim=(len(value_rnn_output.shape)-1))
+        value_rnn_output = torch.split(value_rnn_output, int(value_rnn_output.shape[-1]/2), dim=(len(value_rnn_output.shape)-1))
         value_rnn_output = torch.stack(value_rnn_output).sum(dim=0)
         value_rnn_output = value_rnn_output.squeeze(0).squeeze(1)
 
@@ -143,7 +143,7 @@ class RewardNetwork(nn.Module):
         for t in range(captions.shape[1]):
             reward_rnn_output = self.rewrnn(captions[:, t])
 
-        reward_rnn_output = torch.split(reward_rnn_output, (reward_rnn_output.shape[-1]/2), dim=(len(reward_rnn_output.shape)-1))
+        reward_rnn_output = torch.split(reward_rnn_output, int(reward_rnn_output.shape[-1]/2), dim=(len(reward_rnn_output.shape)-1))
         reward_rnn_output = torch.stack(reward_rnn_output).sum(dim=0)
         reward_rnn_output = reward_rnn_output.squeeze(0).squeeze(1)
 
