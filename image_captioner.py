@@ -81,13 +81,21 @@ def main(args):
         a2c_network = load_a2c_models(args.test_model, data, network_paths)
         print_green(f'[Info] A2C Network loaded')
     else:
-        print_green(f'[Info] Training A2C Network')
         if args.curriculum:
             curriculum = CURRICILUM_LEVELS
         else:
             curriculum = None
-        
-        data["embeddings"] = load_word_embeddings(args.word2vec, data["idx_to_word"])
+
+        print_green(f'[Info] Loading Word Embeddings {args.train_word2vec}')
+        train_corpus = None
+        if args.train_word2vec != "none":
+            print_green(f'[Info] Loading Corpus')
+            train_corpus = get_preprocessed_corpus(BASE_DIR)
+            print_green(f'[Info] Corpus Loaded With {len(train_corpus)} Lines')
+        data["embeddings"] = load_word_embeddings(args.train_word2vec, data, train_corpus)
+        print_green(f'[Info] Done Loading Word Embeddings')
+
+        print_green(f'[Info] Training A2C Network')
         a2c_network = train_a2c_network(train_data=data, \
                         save_paths=save_paths, network_paths=network_paths, \
                             plot_dir=LOG_DIR, epoch_count=args.epochs, episodes=args.episodes, \
@@ -112,6 +120,7 @@ def main(args):
 
 
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser(description='Generate Image Captions through Deep Reinforcement Learning')
 
     parser.add_argument('--training_size', type=int, help='Size of the training set to use (set 0 for the full set)', default=0)
@@ -128,7 +137,8 @@ if __name__ == "__main__":
     parser.add_argument('--pretrained_path', type=str, help='Location of pretrained model files', default="models_pretrained")
 
     # choices: ["none", "conceptnet", "word2vec", "fasttext", "glove", "path/to/word/embedding/model"]
-    parser.add_argument('--word2vec', type=str, help='Word Embedding model to use', default="none")
+    parser.add_argument('--pretrained_word2vec', type=str, help='Word Embedding model to use', default="none")
+    parser.add_argument('--train_word2vec', type=str, choices=["none", "word2vec", "fasttext"], help='Whether to train a word embedding model on training data', default="none")
     args = parser.parse_args()
 
     main(args)

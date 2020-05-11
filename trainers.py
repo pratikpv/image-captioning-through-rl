@@ -73,19 +73,19 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epo
 
     value_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
 
-    reward_network = RewardNetwork(train_data["word_to_idx"], train_data["embeddings"]).to(device)
+    reward_network = RewardNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"]).to(device)
     reward_network.load_state_dict(torch.load(network_paths["reward_network"], map_location=device))
     for param in reward_network.parameters():
         param.require_grad = False
 
 
-    policy_network = PolicyNetwork(train_data["word_to_idx"], train_data["embeddings"]).to(device)
+    policy_network = PolicyNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"]).to(device)
     policy_network.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
     for param in policy_network.parameters():
         param.require_grad = False
 
 
-    value_network = ValueNetwork(train_data["word_to_idx"], train_data["embeddings"]).to(device)
+    value_network = ValueNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"]).to(device)
     criterion = nn.MSELoss().to(device)
     optimizer = optim.Adam(value_network.parameters(), lr=0.001)
     value_network.train(mode=True)
@@ -131,7 +131,7 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epo
 
 def train_policy_network(train_data, network_paths, plot_dir, batch_size=256, epochs=100000):
 
-    policy_network = PolicyNetwork(train_data["word_to_idx"], train_data["embeddings"]).to(device)
+    policy_network = PolicyNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"]).to(device)
     criterion = nn.CrossEntropyLoss().to(device)
     optimizer = optim.Adam(policy_network.parameters(), lr=0.001)
 
@@ -171,7 +171,7 @@ def train_policy_network(train_data, network_paths, plot_dir, batch_size=256, ep
 def train_reward_network(train_data, network_paths, plot_dir, batch_size=256, epochs=50000):
 
     reward_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
-    reward_network = RewardNetwork(train_data["word_to_idx"], train_data["embeddings"]).to(device)
+    reward_network = RewardNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"]).to(device)
     optimizer = optim.Adam(reward_network.parameters(), lr=0.0001)
 
     best_loss = float('inf')
@@ -216,21 +216,21 @@ def train_a2c_network(train_data, save_paths, network_paths, plot_dir, epoch_cou
 
     else:
         try:
-            reward_network = RewardNetwork(train_data["word_to_idx"], train_data["embeddings"]).to(device)
+            reward_network = RewardNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"]).to(device)
             reward_network.load_state_dict(torch.load(network_paths["reward_network"], map_location=device))
             print(f'[Training] loaded reward network')
         except FileNotFoundError:
             print(f'[Training] reward network not found')
             reward_network = train_reward_network(train_data, network_paths, plot_dir)
         try:
-            policy_network = PolicyNetwork(train_data["word_to_idx"], train_data["embeddings"]).to(device)
+            policy_network = PolicyNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"]).to(device)
             policy_network.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
             print(f'[Training] loaded policy network')
         except FileNotFoundError:
             print(f'[Training] policy network not found')
             policy_network = train_policy_network(train_data, network_paths, plot_dir)
         try:
-            value_network = ValueNetwork(train_data["word_to_idx"], train_data["embeddings"]).to(device)
+            value_network = ValueNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"]).to(device)
             value_network.load_state_dict(torch.load(network_paths["value_network"], map_location=device))
             print(f'[Training] loaded value network')
         except FileNotFoundError:

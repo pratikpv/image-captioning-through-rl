@@ -19,7 +19,7 @@ class PolicyNetwork(nn.Module):
         vocab_size = len(word_to_idx)
 
         if pretrained_embeddings is not None:
-            self.caption_embedding = nn.Embedding.from_pretrained(pretrained_embeddings, freeze=True)
+            self.caption_embedding = nn.Embedding.from_pretrained(torch.FloatTensor(pretrained_embeddings), freeze=True)
             wordvec_dim = pretrained_embeddings.shape[1]
         else:
             self.caption_embedding = nn.Embedding(vocab_size, wordvec_dim)
@@ -54,7 +54,7 @@ class ValueNetworkRNN(nn.Module):
         vocab_size = len(word_to_idx)
 
         if pretrained_embeddings is not None:
-            self.caption_embedding = nn.Embedding.from_pretrained(pretrained_embeddings, freeze=True)
+            self.caption_embedding = nn.Embedding.from_pretrained(torch.FloatTensor(pretrained_embeddings), freeze=True)
             wordvec_dim = pretrained_embeddings.shape[1]
         else:
             self.caption_embedding = nn.Embedding(vocab_size, wordvec_dim)
@@ -111,7 +111,7 @@ class RewardNetworkRNN(nn.Module):
         vocab_size = len(word_to_idx)
 
         if pretrained_embeddings is not None:
-            self.caption_embedding = nn.Embedding.from_pretrained(pretrained_embeddings, freeze=True)
+            self.caption_embedding = nn.Embedding.from_pretrained(torch.FloatTensor(pretrained_embeddings), freeze=True)
             wordvec_dim = pretrained_embeddings.shape[1]
         else:
             self.caption_embedding = nn.Embedding(vocab_size, wordvec_dim)
