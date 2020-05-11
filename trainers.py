@@ -318,7 +318,8 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, e
         a2c_train_writer.add_scalar('A2C Network-episodic-mean-rewards', rewards.mean(), epoch)
         a2c_train_writer.add_scalar('A2C Network-episodic-mean-advantage', advantage.mean(), epoch)
 
-        a2c_network.value_network.valrnn.hidden_cell.detach()
+        a2c_network.value_network.valrnn.hidden_cell[0].detach_()
+        a2c_network.value_network.valrnn.hidden_cell[1].detach_()
 
     return a2c_network
 
@@ -399,7 +400,8 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
                 writer_var_name = 'A2C Curriculum' + ' Level-' + str(level) + '-mean-advantage'
                 a2c_train_curriculum_writer.add_scalar(writer_var_name, advantage.mean(), epoch)
 
-            a2c_network.value_network.valrnn.hidden_cell.detach()
+            a2c_network.value_network.valrnn.hidden_cell[0].detach_()
+            a2c_network.value_network.valrnn.hidden_cell[1].detach_()
 
     return a2c_network
 
@@ -438,7 +440,8 @@ def test_a2c_network(a2c_network, test_data, image_caption_data, data_size, vali
             generated_captions_file.flush()
             image_url_file.flush()
 
-            a2c_network.value_network.valrnn.hidden_cell.detach()
+            a2c_network.value_network.valrnn.hidden_cell[0].detach_()
+            a2c_network.value_network.valrnn.hidden_cell[1].detach_()
 
         real_captions_file.close()
         generated_captions_file.close()
