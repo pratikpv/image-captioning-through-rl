@@ -4,8 +4,15 @@ from torch.nn import functional as F
 import numpy as np
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 MAX_SEQ_LEN = 17
+
+def repackage_hidden(h):
+    """Wraps hidden states in new Tensors, to detach them from their history."""
+
+    if isinstance(h, torch.Tensor):
+        return h.detach()
+    else:
+        return tuple(repackage_hidden(v) for v in h)
 
 
 class PolicyNetwork(nn.Module):
@@ -56,16 +63,14 @@ class ValueNetworkRNN(nn.Module):
         else:
             self.caption_embedding = nn.Embedding(vocab_size, wordvec_dim)
 
-        self.init_hidden()
+        self.hidden_cell = (torch.zeros(1, 1, self.hidden_dim).to(device), torch.zeros(1, 1, self.hidden_dim).to(device))
         self.lstm = nn.LSTM(wordvec_dim, hidden_dim)
 
-    def init_hidden(self):
-        self.hidden_cell = (torch.zeros(1, 1, self.hidden_dim).to(device), torch.zeros(1, 1, self.hidden_dim).to(device))
 
     def forward(self, captions):
 
         input_captions = self.caption_embedding(captions)
-        output, self.hidden_cell = self.lstm(input_captions.view(len(input_captions), 1, -1), self.hidden_cell)
+        output, self.hidden_cell = self.lstm(input_captions.view(len(input_captions), 1, -1), repackage_hidden(self.hidden_cell))
 
         return output
     
@@ -109,16 +114,14 @@ class RewardNetworkRNN(nn.Module):
         else:
             self.caption_embedding = nn.Embedding(vocab_size, wordvec_dim)
 
-        self.init_hidden()
+        self.hidden_cell = torch.zeros(1, 1, self.hidden_dim).to(device)
         self.gru = nn.GRU(wordvec_dim, hidden_dim)
 
-    def init_hidden(self):
-        self.hidden_cell = torch.zeros(1, 1, self.hidden_dim).to(device)
 
     def forward(self, captions):
 
         input_captions = self.caption_embedding(captions)
-        output, self.hidden_cell = self.gru(input_captions.view(len(input_captions), 1, -1), self.hidden_cell)
+        output, self.hidden_cell = self.gru(input_captions.view(len(input_captions), 1, -1), repackage_hidden(self.hidden_cell))
 
         return output
 

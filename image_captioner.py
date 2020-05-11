@@ -95,12 +95,13 @@ def main(args):
         data["embeddings"] = load_word_embeddings(args.train_word2vec, data, train_corpus)
         print_green(f'[Info] Done Loading Word Embeddings')
 
-        print_green(f'[Info] Training A2C Network')
-        a2c_network = train_a2c_network(train_data=data, \
-                        save_paths=save_paths, network_paths=network_paths, \
-                            plot_dir=LOG_DIR, epoch_count=args.epochs, episodes=args.episodes, \
-                                    retrain_all=args.retrain, curriculum=curriculum)
-        print_green(f'[Info] A2C Network trained')
+        with torch.autograd.set_detect_anomaly(True):
+            print_green(f'[Info] Training A2C Network')
+            a2c_network = train_a2c_network(train_data=data, \
+                            save_paths=save_paths, network_paths=network_paths, \
+                                plot_dir=LOG_DIR, epoch_count=args.epochs, episodes=args.episodes, \
+                                        retrain_all=args.retrain, curriculum=curriculum)
+            print_green(f'[Info] A2C Network trained')
 
     print_green(f'[Info] Testing A2C Network')
     test_a2c_network(a2c_network, test_data=data, \

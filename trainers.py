@@ -121,9 +121,8 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epo
         loss.backward()
         optimizer.step()
 
-        value_network.valrnn.hidden_cell[0].detach_()
-        value_network.valrnn.hidden_cell[1].detach_()
-        reward_network.rewrnn.hidden_cell.detach_()
+        value_network.valrnn.hidden_cell[0].detach()
+        value_network.valrnn.hidden_cell[1].detach()
     
     return value_network
 
@@ -195,7 +194,7 @@ def train_reward_network(train_data, network_paths, plot_dir, batch_size=256, ep
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        reward_network.rewrnn.hidden_cell.detach_()
+        reward_network.rewrnn.hidden_cell.detach()
 
     return reward_network
 
@@ -311,15 +310,15 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, e
 
         if episodic_avg_loss < best_loss:
             best_loss = episodic_avg_loss
-        progress.set_description_str('Training A2C Network: Advantage: %s, Best Loss %s' % (advantage.mean().item(), best_loss))
+        progress.set_description_str('Training A2C Network: Best Loss %s' % (best_loss))
 
         # Summary Writer
         a2c_train_writer.add_scalar('A2C Network-episodic-loss', episodic_avg_loss, epoch)
         a2c_train_writer.add_scalar('A2C Network-episodic-mean-rewards', rewards.mean(), epoch)
         a2c_train_writer.add_scalar('A2C Network-episodic-mean-advantage', advantage.mean().item(), epoch)
 
-        a2c_network.value_network.valrnn.hidden_cell[0].detach_()
-        a2c_network.value_network.valrnn.hidden_cell[1].detach_()
+        a2c_network.value_network.valrnn.hidden_cell[0].detach()
+        a2c_network.value_network.valrnn.hidden_cell[1].detach()
 
     return a2c_network
 
@@ -331,10 +330,10 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
     print_green(f'[Training] Training Advantage Actor-Critic Network')
     print_green(f'[Training] mode set to curriculum training using levels: {curriculum}')
 
+    best_loss = float('inf')
     for level in curriculum:
 
         print_green(f'[Training] Training curriculum level: {level}')
-        best_loss = float('inf')
         progress = tqdm(range(epoch_count), desc='Training A2C Curriculum Level: %s, Advantage: %s, Best Loss: %s' % (level, None, best_loss))
         
         for epoch in progress:
@@ -386,7 +385,7 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
 
                 if episodic_avg_loss < best_loss:
                     best_loss = episodic_avg_loss
-                progress.set_description_str('Training A2C Curriculum Level: %s, Advantage: %s, Best Loss: %s' % (level, advantage.mean().item(), best_loss))
+                progress.set_description_str('Training A2C Curriculum Level: %s, Best Loss: %s' % (level, best_loss))
 
                 optimizer.zero_grad()
                 loss.mean().backward(retain_graph=True)
@@ -400,8 +399,8 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
                 writer_var_name = 'A2C Curriculum' + ' Level-' + str(level) + '-mean-advantage'
                 a2c_train_curriculum_writer.add_scalar(writer_var_name, advantage.mean().item(), epoch)
 
-            a2c_network.value_network.valrnn.hidden_cell[0].detach_()
-            a2c_network.value_network.valrnn.hidden_cell[1].detach_()
+            a2c_network.value_network.valrnn.hidden_cell[0].detach()
+            a2c_network.value_network.valrnn.hidden_cell[1].detach()
 
     return a2c_network
 
@@ -440,8 +439,8 @@ def test_a2c_network(a2c_network, test_data, image_caption_data, data_size, vali
             generated_captions_file.flush()
             image_url_file.flush()
 
-            a2c_network.value_network.valrnn.hidden_cell[0].detach_()
-            a2c_network.value_network.valrnn.hidden_cell[1].detach_()
+            a2c_network.value_network.valrnn.hidden_cell[0].detach()
+            a2c_network.value_network.valrnn.hidden_cell[1].detach()
 
         real_captions_file.close()
         generated_captions_file.close()
