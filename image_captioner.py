@@ -82,18 +82,17 @@ def main(args):
         print_green(f'[Info] A2C Network loaded')
     else:
         print_green(f'[Info] Training A2C Network')
-        with torch.autograd.set_detect_anomaly(True):
-            if args.curriculum:
-                curriculum = CURRICILUM_LEVELS
-            else:
-                curriculum = None
-            
-            data["embeddings"] = load_word_embeddings(args.word2vec, data["idx_to_word"])
-            a2c_network = train_a2c_network(train_data=data, \
-                            save_paths=save_paths, network_paths=network_paths, \
-                                plot_dir=LOG_DIR, epoch_count=args.epochs, episodes=args.episodes, \
-                                        retrain_all=args.retrain, curriculum=curriculum)
-            print_green(f'[Info] A2C Network trained')
+        if args.curriculum:
+            curriculum = CURRICILUM_LEVELS
+        else:
+            curriculum = None
+        
+        data["embeddings"] = load_word_embeddings(args.word2vec, data["idx_to_word"])
+        a2c_network = train_a2c_network(train_data=data, \
+                        save_paths=save_paths, network_paths=network_paths, \
+                            plot_dir=LOG_DIR, epoch_count=args.epochs, episodes=args.episodes, \
+                                    retrain_all=args.retrain, curriculum=curriculum)
+        print_green(f'[Info] A2C Network trained')
 
     print_green(f'[Info] Testing A2C Network')
     test_a2c_network(a2c_network, test_data=data, \
