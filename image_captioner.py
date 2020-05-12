@@ -19,7 +19,8 @@ RESULTS_FILE = 'results.txt'
 
 BEST_SCORE_FILENAME = 'best_scores.txt'
 BEST_SCORE_IMAGES_PATH = 'best_scores_images'
-CURRICILUM_LEVELS = [2,3,5,7,11,13]
+# CURRICILUM_LEVELS = [2, 4, 6, 8, 10, 12, 14, 16]
+CURRICILUM_LEVELS = [3, 6, 9, 12, 15]
 
 def setup(args):
 
@@ -76,22 +77,33 @@ def main(args):
     data = load_data(base_dir=BASE_DIR, max_train=max_train, print_keys=True)
     print_green(f'[Info] COCO dataset loaded')
 
+    train_corpus = None
+    if args.train_word2vec != "none":
+        print_green(f'[Info] Loading Word Embeddings {args.train_word2vec}')
+        print_green(f'[Info] Loading Corpus')
+        train_corpus = get_preprocessed_corpus(BASE_DIR)
+        print_green(f'[Info] Corpus Loaded With {len(train_corpus)} Lines')
+        data["embeddings"] = load_word_embeddings(args.train_word2vec, data, train_corpus)
+        print_green(f'[Info] Done Loading Word Embeddings')
+    else:
+        data["embeddings"] = None
+
     if os.path.isfile(args.test_model) and "a2cNetwork" in os.path.split(args.test_model)[1]:
         print_green(f'[Info] Loading A2C Network')
         a2c_network = load_a2c_models(args.test_model, data, network_paths)
         print_green(f'[Info] A2C Network loaded')
     else:
+        if args.curriculum:
+            curriculum = CURRICILUM_LEVELS
+        else:
+            curriculum = None
+
         print_green(f'[Info] Training A2C Network')
-        with torch.autograd.set_detect_anomaly(True):
-            if args.curriculum:
-                curriculum = CURRICILUM_LEVELS
-            else:
-                curriculum = None
-            a2c_network = train_a2c_network(train_data=data, \
-                            save_paths=save_paths, network_paths=network_paths, \
-                                plot_dir=LOG_DIR, epoch_count=args.epochs, episodes=args.episodes, \
-                                        retrain_all=args.retrain, curriculum=curriculum)
-            print_green(f'[Info] A2C Network trained')
+        a2c_network = train_a2c_network(train_data=data, \
+                        save_paths=save_paths, network_paths=network_paths, \
+                            plot_dir=LOG_DIR, epochs=args.epochs, batch_size=args.batch_size, \
+                                    retrain_all=args.retrain, curriculum=curriculum)
+        print_green(f'[Info] A2C Network trained')
 
     print_green(f'[Info] Testing A2C Network')
     test_a2c_network(a2c_network, test_data=data, \
@@ -111,21 +123,25 @@ def main(args):
 
 
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser(description='Generate Image Captions through Deep Reinforcement Learning')
 
     parser.add_argument('--training_size', type=int, help='Size of the training set to use (set 0 for the full set)', default=0)
     parser.add_argument('--test_size', type=int, help='Size of the test set to use', default=40504)
 
-    parser.add_argument('--epochs', type=int, help='Number of Epochs to use for Training the A2C Network', default=10000)
-    parser.add_argument('--episodes', type=int, help='Number of Episodes to use for Training the A2C Network', default=100)
+    parser.add_argument('--epochs', type=int, help='Number of Epochs to use for Training the A2C Network', default=100)
+    parser.add_argument('--batch_size', type=int, help='Number of Episodes (Batch Size) to use for Training the A2C Network', default=512)
 
     parser.add_argument('--retrain', action='store_true', help='Whether to retrain value, policy and reward networks', default=False)
     parser.add_argument('--postprocess', action='store_true', help='Post process data to download images from the validation cycle', default=False)
     parser.add_argument('--curriculum', action='store_true', help='Use curriculum training approach',default=False)
 
     parser.add_argument('--test_model', type=str, help='Test a pretrained advantage actor critic model', default="")
-    parser.add_argument('--pretrained_path', type=str, help='Location of pretrained model files', default='models_pretrained')
+    parser.add_argument('--pretrained_path', type=str, help='Location of pretrained model files', default="models_pretrained")
 
+    # choices: ["none", "conceptnet", "word2vec", "fasttext", "glove", "path/to/word/embedding/model"]
+    parser.add_argument('--pretrained_word2vec', type=str, help='Word Embedding model to use', default="none")
+    parser.add_argument('--train_word2vec', type=str, choices=["none", "word2vec", "fasttext"], help='Whether to train a word embedding model on training data', default="none")
     args = parser.parse_args()
 
     main(args)

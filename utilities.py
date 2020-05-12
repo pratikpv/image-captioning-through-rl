@@ -2,9 +2,18 @@ import h5py
 import json
 import requests
 import gc
+import os
+
 from PIL import Image
 from io import BytesIO
 import urllib.request
+
+import numpy as np
+import gensim
+import gensim.downloader as api
+from gensim.models import KeyedVectors
+from gensim.utils import simple_preprocess
+
 from models import *
 from metrics import *
 
@@ -102,13 +111,29 @@ def decode_captions(captions, idx_to_word):
 
 
 def get_coco_batch(data, batch_size=100, split='train'):
-    split_size = data['%s_captions' % split].shape[0]
-    mask = np.random.choice(split_size, batch_size)
+    split_total_size = data['%s_captions' % split].shape[0]
+    mask = np.random.choice(split_total_size, batch_size)
     captions = data['%s_captions' % split][mask]
     image_idxs = data['%s_image_idxs' % split][mask]
     image_features = data['%s_features' % split][image_idxs]
     urls = data['%s_urls' % split][image_idxs]
     return captions, image_features, urls
+
+
+def get_coco_minibatches(data, batch_size=100, split='train'):
+
+    from torch import randperm
+    split_total_size = data['%s_captions' % split].shape[0]
+    permutation = torch.randperm(split_total_size)
+
+    for i in range(0, split_total_size, batch_size):
+        mask = permutation[i: i+batch_size]
+        captions = data['%s_captions' % split][mask]
+        image_idxs = data['%s_image_idxs' % split][mask]
+        image_features = data['%s_features' % split][image_idxs]
+        urls = data['%s_urls' % split][image_idxs]
+
+        yield captions, image_features, urls
 
 
 def get_coco_validation_data(data, data_size=None):
@@ -123,6 +148,9 @@ def image_from_url(url):
     img = Image.open(BytesIO(response.content))
     return img
 
+
+def global_minibatch_number(epoch, batch_id, batch_size):
+    return epoch*batch_size + batch_id
 
 def print_garbage_collection():
     print("-" * 30)
@@ -188,11 +216,11 @@ def post_process_data(image_caption_data, top_item_count=5):
 
 def load_a2c_models(model_path, train_data, network_paths):
     
-    policy_network = PolicyNetwork(train_data["word_to_idx"]).to(device)
+    policy_network = PolicyNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"]).to(device)
     policy_network.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
     policy_network.train(mode=False)
 
-    value_network = ValueNetwork(train_data["word_to_idx"]).to(device)
+    value_network = ValueNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"]).to(device)
     value_network.load_state_dict(torch.load(network_paths["value_network"], map_location=device))
     value_network.train(mode=False)
 
@@ -226,3 +254,88 @@ def calculate_a2cNetwork_score(image_caption_data, save_paths):
         f.write(network_score)
         f.write('\n' + '-' * 10 + ' results ' + '-' * 10 + '\n')
 
+
+def get_preprocessed_corpus(base_dir):
+
+    data = load_data(base_dir=base_dir, max_train=None, print_keys=False)
+    idx_to_word = data["idx_to_word"]
+    corpus_data = [simple_preprocess(" ".join([idx_to_word[d] for d in sent])) for sent in data["train_captions"]]
+    corpus_data += [simple_preprocess(" ".join([idx_to_word[d] for d in sent])) for sent in data["val_captions"]]
+
+    return corpus_data
+
+def get_embeddings(emb_type):
+    
+    embeddings = None
+    emb_name = ""
+
+    if emb_type == "conceptnet":
+        emb_name = "conceptnet-numberbatch-17-06-300"
+    elif emb_type == "fasttext":
+        emb_name = "fasttext-wiki-news-subwords-300"
+    elif emb_type == "word2vec":
+        emb_name = "word2vec-google-news-300"
+    elif emb_type == "glove":
+        emb_name = "glove-wiki-gigaword-300"
+    elif os.path.isfile(emb_name):
+        return emb_name
+    
+    embeddings = api.load(emb_name)
+
+    return embeddings
+
+
+def get_embedding_model(path):
+
+    if isinstance(path, gensim.models.keyedvectors.BaseKeyedVectors):
+        model = path
+    elif isinstance(path, gensim.models.base_any2vec.BaseWordEmbeddingsModel):
+        model = path.wv
+    elif os.path.isfile(path):
+        model = KeyedVectors.load_word2vec_format(path)
+    else:
+        raise ValueError("Got %s as an argument, expect either a path to embeddings or an embedding model" % type(path))
+
+    return model
+
+
+def get_vectors_by_by_vocab(model, word_to_idx):
+
+    idx_to_word = {i: w for w, i in word_to_idx.items()}
+    new_vectors = np.empty((len(idx_to_word), model.vectors.shape[1]), dtype=np.float32)
+    curr_vecs = []
+
+    for idx, word in idx_to_word.items():
+        try:
+            new_vectors[idx] = model[word]
+            curr_vecs.append(model[word])
+        except KeyError:
+            # Initialize randomly
+            if len(curr_vecs) == 0:
+                new_vectors[idx] = np.random.rand(1, model.vectors.shape[1])
+            # Initialize with mean of all vectors
+            else:
+                new_vectors[idx] = np.array(curr_vecs).mean(axis=0)
+
+    return new_vectors
+
+
+def load_word_embeddings(embedding_type, target_data, train_corpus=None):
+
+    if embedding_type == "none":
+        return None
+
+    if embedding_type == "fasttext":
+        model = gensim.models.FastText(sg=1, size=300, min_count=1, workers=56, word_ngrams=1)
+    else:
+        model = gensim.models.Word2Vec(sg=1, size=300, min_count=1, workers=56)
+
+    model.build_vocab(train_corpus)
+
+    print_green(f'[Info] Training Word Embeddings')
+    model.train(train_corpus, total_examples=model.corpus_count, epochs=10, report_delay=5)
+    print_green(f'[Info] Finished Training Word Embeddings')
+
+    vectors = get_vectors_by_by_vocab(model.wv, target_data["word_to_idx"])
+
+    return vectors
