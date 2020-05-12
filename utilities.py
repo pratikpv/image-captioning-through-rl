@@ -120,7 +120,7 @@ def get_coco_batch(data, batch_size=100, split='train'):
     return captions, image_features, urls
 
 
-def get_coco_batches(data, batch_size=100, split='train'):
+def get_coco_minibatches(data, batch_size=100, split='train'):
 
     from torch import randperm
     split_total_size = data['%s_captions' % split].shape[0]

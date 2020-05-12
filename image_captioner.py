@@ -129,7 +129,7 @@ if __name__ == "__main__":
     parser.add_argument('--training_size', type=int, help='Size of the training set to use (set 0 for the full set)', default=0)
     parser.add_argument('--test_size', type=int, help='Size of the test set to use', default=40504)
 
-    parser.add_argument('--epochs', type=int, help='Number of Epochs to use for Training the A2C Network', default=1000)
+    parser.add_argument('--epochs', type=int, help='Number of Epochs to use for Training the A2C Network', default=100)
     parser.add_argument('--batch_size', type=int, help='Number of Episodes (Batch Size) to use for Training the A2C Network', default=512)
 
     parser.add_argument('--retrain', action='store_true', help='Whether to retrain value, policy and reward networks', default=False)
