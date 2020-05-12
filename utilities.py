@@ -111,13 +111,29 @@ def decode_captions(captions, idx_to_word):
 
 
 def get_coco_batch(data, batch_size=100, split='train'):
-    split_size = data['%s_captions' % split].shape[0]
-    mask = np.random.choice(split_size, batch_size)
+    split_total_size = data['%s_captions' % split].shape[0]
+    mask = np.random.choice(split_total_size, batch_size)
     captions = data['%s_captions' % split][mask]
     image_idxs = data['%s_image_idxs' % split][mask]
     image_features = data['%s_features' % split][image_idxs]
     urls = data['%s_urls' % split][image_idxs]
     return captions, image_features, urls
+
+
+def get_coco_batches(data, batch_size=100, split='train'):
+
+    from torch import randperm
+    split_total_size = data['%s_captions' % split].shape[0]
+    permutation = torch.randperm(split_total_size)
+
+    for i in range(0, split_total_size, batch_size):
+        mask = permutation[i: i+batch_size]
+        captions = data['%s_captions' % split][mask]
+        image_idxs = data['%s_image_idxs' % split][mask]
+        image_features = data['%s_features' % split][image_idxs]
+        urls = data['%s_urls' % split][image_idxs]
+
+        yield captions, image_features, urls
 
 
 def get_coco_validation_data(data, data_size=None):

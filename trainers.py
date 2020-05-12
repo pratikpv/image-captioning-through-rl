@@ -75,11 +75,12 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epo
 
     reward_network = RewardNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"]).to(device)
     reward_network.load_state_dict(torch.load(network_paths["reward_network"], map_location=device))
+    reward_network.train(False)
     reward_network.requires_grad_(False)
-
 
     policy_network = PolicyNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"]).to(device)
     policy_network.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
+    policy_network.train(False)
     policy_network.requires_grad_(False)
 
 
@@ -90,38 +91,40 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epo
 
     best_loss = float('inf')
     print_green(f'[Training] Training Value Network')
-
     progress = tqdm(range(epochs), desc='Training Value Network: Best Loss %s' % best_loss)
+    
     for epoch in progress:
-        captions, features, _ = get_coco_batch(train_data, batch_size=batch_size, split='train')
-        features = torch.tensor(features, device=device).float()
+        for coco_batch in get_coco_batches(train_data, batch_size=batch_size, split='train'):
 
-        # Generate captions using the policy network
-        captions = GenerateCaptionsGreedy(features, captions, policy_network)
+            captions, features, _ = coco_batch
+            features = torch.tensor(features, device=device).float()
 
-        # Compute the reward of the generated caption using reward network
-        rewards = GetRewards(features, captions, reward_network)
-        
-        # Compute the value of a random state in the generation process
-        values = value_network(features, captions[:, :random.randint(1, MAX_SEQ_LEN)])
-        
-        # Compute the loss for the value and the reward
-        loss = criterion(values, rewards)
+            # Generate captions using the policy network
+            captions = GenerateCaptionsGreedy(features, captions, policy_network)
 
-        if loss.item() < best_loss:
-            best_loss = loss.item()
-            torch.save(value_network.state_dict(), network_paths["value_network"])
-            progress.set_description_str('Training Value Network: Best Loss %s' % best_loss)
+            # Compute the reward of the generated caption using reward network
+            rewards = GetRewards(features, captions, reward_network)
+            
+            # Compute the value of a random state in the generation process
+            values = value_network(features, captions[:, :random.randint(1, MAX_SEQ_LEN)])
+            
+            # Compute the loss for the value and the reward
+            loss = criterion(values, rewards)
 
-        value_writer.add_scalar('Value Network-loss', loss, epoch)
+            if loss.item() < best_loss:
+                best_loss = loss.item()
+                torch.save(value_network.state_dict(), network_paths["value_network"])
+                progress.set_description_str('Training Value Network: Best Loss %s' % best_loss)
 
-        optimizer.zero_grad()
-        loss.backward(retain_graph=True)
-        optimizer.step()
+            value_writer.add_scalar('Value Network-loss', loss, epoch)
 
-        # value_network.valrnn.hidden_cell = repackage_hidden(value_network.valrnn.hidden_cell)
-        value_network.valrnn.init_hidden()
-        reward_network.rewrnn.init_hidden()
+            optimizer.zero_grad()
+            loss.backward(retain_graph=True)
+            optimizer.step()
+
+            # value_network.valrnn.hidden_cell = repackage_hidden(value_network.valrnn.hidden_cell)
+            value_network.valrnn.init_hidden()
+            reward_network.rewrnn.init_hidden()
     
     return value_network
 
@@ -139,28 +142,30 @@ def train_policy_network(train_data, network_paths, plot_dir, batch_size=256, ep
     progress = tqdm(range(epochs), desc='Training Policy Network: Best Loss %s' % best_loss)
 
     for epoch in progress:
-        captions, features, _ = get_coco_batch(train_data, batch_size=batch_size, split='train')
-        features = torch.tensor(features, device=device).float().unsqueeze(0)
-        captions_in = torch.tensor(captions[:, :-1], device=device).long()
-        captions_out = torch.tensor(captions[:, 1:], device=device).long()
-        output = policy_network(features, captions_in)
+        for coco_batch in get_coco_batches(train_data, batch_size=batch_size, split='train'):
 
-        loss = 0
-        for i in range(batch_size):
-            # '2' is the end of segment, hence points to caption length
-            caplen = np.nonzero(captions[i] == 2)[0][0] + 1
-            loss += (caplen / batch_size) * criterion(output[i][:caplen], captions_out[i][:caplen])
+            captions, features, _ = coco_batch
+            features = torch.tensor(features, device=device).float().unsqueeze(0)
+            captions_in = torch.tensor(captions[:, :-1], device=device).long()
+            captions_out = torch.tensor(captions[:, 1:], device=device).long()
+            output = policy_network(features, captions_in)
 
-        if loss.item() < best_loss:
-            best_loss = loss.item()
-            torch.save(policy_network.state_dict(), network_paths["policy_network"])
-            progress.set_description_str('Training Policy Network: Best Loss %s' % best_loss)
+            loss = 0
+            for i in range(batch_size):
+                # '2' is the end of segment, hence points to caption length
+                caplen = np.nonzero(captions[i] == 2)[0][0] + 1
+                loss += (caplen / batch_size) * criterion(output[i][:caplen], captions_out[i][:caplen])
 
-        policy_writer.add_scalar('Policy Network-loss', loss, epoch)
+            if loss.item() < best_loss:
+                best_loss = loss.item()
+                torch.save(policy_network.state_dict(), network_paths["policy_network"])
+                progress.set_description_str('Training Policy Network: Best Loss %s' % best_loss)
 
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+            policy_writer.add_scalar('Policy Network-loss', loss, epoch)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
     return policy_network
 
@@ -176,26 +181,27 @@ def train_reward_network(train_data, network_paths, plot_dir, batch_size=256, ep
     progress = tqdm(range(epochs), desc='Training Reward Network: Best Loss %s' % best_loss)
 
     for epoch in progress:
+        for coco_batch in get_coco_batches(train_data, batch_size=batch_size, split='train'):
 
-        captions, features, _ = get_coco_batch(train_data, batch_size=batch_size, split='train')
-        features = torch.tensor(features, device=device).float()
-        captions = torch.tensor(captions, device=device).long()
-        ve, se = reward_network(features, captions)
-        loss = VisualSemanticEmbeddingLoss(ve, se)
+            captions, features, _ = coco_batch
+            features = torch.tensor(features, device=device).float()
+            captions = torch.tensor(captions, device=device).long()
+            ve, se = reward_network(features, captions)
+            loss = VisualSemanticEmbeddingLoss(ve, se)
 
-        if loss.item() < best_loss:
-            best_loss = loss.item()
-            torch.save(reward_network.state_dict(), network_paths["reward_network"])
-            progress.set_description_str('Training Reward Network: Best Loss %s' % best_loss)
+            if loss.item() < best_loss:
+                best_loss = loss.item()
+                torch.save(reward_network.state_dict(), network_paths["reward_network"])
+                progress.set_description_str('Training Reward Network: Best Loss %s' % best_loss)
 
-        reward_writer.add_scalar('Reward Network-loss', loss, epoch)
+            reward_writer.add_scalar('Reward Network-loss', loss, epoch)
 
-        optimizer.zero_grad()
-        loss.backward(retain_graph=True)
-        optimizer.step()
+            optimizer.zero_grad()
+            loss.backward(retain_graph=True)
+            optimizer.step()
 
-        # reward_network.rewrnn.hidden_cell = repackage_hidden(reward_network.rewrnn.hidden_cell)
-        reward_network.rewrnn.init_hidden()
+            # reward_network.rewrnn.hidden_cell = repackage_hidden(reward_network.rewrnn.hidden_cell)
+            reward_network.rewrnn.init_hidden()
 
     return reward_network
 
@@ -239,6 +245,7 @@ def train_a2c_network(train_data, save_paths, network_paths, plot_dir, epoch_cou
             value_network = train_value_network(train_data, network_paths, plot_dir, batch_size=batch_size)
 
     reward_network.requires_grad_(False)
+    reward_network.train(False)
 
     a2c_network = AdvantageActorCriticNetwork(value_network, policy_network).to(device)
     a2c_network.train(True)
@@ -273,58 +280,59 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, b
     progress = tqdm(range(epoch_count), desc='Training A2C Network: Advantage: %s, Best Loss %s' % (None, best_loss))
     
     for epoch in progress:
-        episodic_avg_loss = 0
+        for coco_batch in get_coco_batches(train_data, batch_size=batch_size, split='train'):
+    
+            captions, features, _ = coco_batch
+            features = torch.tensor(features, device=device).float()
+            captions = torch.tensor(captions, device=device).long()
 
-        captions, features, _ = get_coco_batch(train_data, batch_size=batch_size, split='train')
-        features = torch.tensor(features, device=device).float()
-        captions = torch.tensor(captions, device=device).long()
+            captions_in = captions
+            features_in = features
 
-        captions_in = captions
-        features_in = features
+            values, probs = a2c_network(features_in, captions_in)
 
-        values, probs = a2c_network(features_in, captions_in)
+            probs = F.softmax(probs, dim=2)
+            dist = probs.cpu().detach().numpy()[:,0]
 
-        probs = F.softmax(probs, dim=2)
-        dist = probs.cpu().detach().numpy()[:,0]
+            actions = []
+            for i in range(dist.shape[0]):
+                actions.append(np.random.choice(probs.shape[-1], p=dist[i]))
+            actions = torch.from_numpy(np.array(actions))
 
-        actions = []
-        for i in range(dist.shape[0]):
-            actions.append(np.random.choice(probs.shape[-1], p=dist[i]))
-        actions = torch.from_numpy(np.array(actions))
+            gen_cap = actions.unsqueeze(-1).to(device)
+            try:
+                captions_in = torch.cat((captions_in, gen_cap), axis=1)
+            except:
+                captions_in = torch.cat((captions_in, gen_cap.long()), axis=1)
 
-        gen_cap = actions.unsqueeze(-1).to(device)
-        try:
-            captions_in = torch.cat((captions_in, gen_cap), axis=1)
-        except:
-            captions_in = torch.cat((captions_in, gen_cap.long()), axis=1)
+            log_probs = torch.log(probs[:,0,:].gather(1, actions.view(-1,1).to(device)))
 
-        log_probs = torch.log(probs[:,0,:].gather(1, actions.view(-1,1).to(device)))
+            rewards = GetRewards(features_in, captions_in, reward_network)
 
-        rewards = GetRewards(features_in, captions_in, reward_network)
+            advantage = values - rewards
+            actorLoss = (-log_probs * advantage).mean()
+            criticLoss = 0.5 * advantage.pow(2).mean()
 
-        advantage = values - rewards
-        actorLoss = (-log_probs * advantage).mean()
-        criticLoss = 0.5 * advantage.pow(2).mean()
+            loss = actorLoss + criticLoss
+            episodic_avg_loss = loss.mean().item()
 
-        loss = actorLoss + criticLoss
-        episodic_avg_loss = loss.mean().item()
+            optimizer.zero_grad()
+            loss.mean().backward(retain_graph=True)
+            optimizer.step()
 
-        optimizer.zero_grad()
-        loss.mean().backward(retain_graph=True)
-        optimizer.step()
+            if episodic_avg_loss < best_loss:
+                best_loss = episodic_avg_loss
+            progress.set_description_str('Training A2C Network: Best Loss %s' % (best_loss))
 
-        if episodic_avg_loss < best_loss:
-            best_loss = episodic_avg_loss
-        progress.set_description_str('Training A2C Network: Best Loss %s' % (best_loss))
+            # Summary Writer
+            a2c_train_writer.add_scalar('A2C Network-episodic-loss', episodic_avg_loss, epoch)
+            a2c_train_writer.add_scalar('A2C Network-episodic-mean-rewards', rewards.mean(), epoch)
+            a2c_train_writer.add_scalar('A2C Network-episodic-mean-advantage', advantage.mean().item(), epoch)
 
-        # Summary Writer
-        a2c_train_writer.add_scalar('A2C Network-episodic-loss', episodic_avg_loss, epoch)
-        a2c_train_writer.add_scalar('A2C Network-episodic-mean-rewards', rewards.mean(), epoch)
-        a2c_train_writer.add_scalar('A2C Network-episodic-mean-advantage', advantage.mean().item(), epoch)
-
-        del gen_cap, probs
-        # a2c_network.value_network.valrnn.hidden_cell = repackage_hidden(a2c_network.value_network.valrnn.hidden_cell)
-        a2c_network.value_network.valrnn.init_hidden()
+            del gen_cap, probs
+            # a2c_network.value_network.valrnn.hidden_cell = repackage_hidden(a2c_network.value_network.valrnn.hidden_cell)
+            reward_network.rewrnn.init_hidden()
+            a2c_network.value_network.valrnn.init_hidden()
 
     return a2c_network
 
@@ -343,75 +351,79 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
         progress = tqdm(range(epoch_count), desc='Training A2C Curriculum Level: %s, Advantage: %s, Best Loss: %s' % (level, None, best_loss))
         
         for epoch in progress:
-            episodic_avg_loss = 0
+            for coco_batch in get_coco_batches(train_data, batch_size=batch_size, split='train'):
 
-            captions, features, _ = get_coco_batch(train_data, batch_size=batch_size, split='train')
-            features = torch.tensor(features, device=device).float()
-            captions = torch.tensor(captions, device=device).long()
+                captions, features, _ = coco_batch
+                features = torch.tensor(features, device=device).float()
+                captions = torch.tensor(captions, device=device).long()
 
-            log_probs = []
-            values = []
-            rewards = []
-            caplen = np.nonzero(captions == 2)[:,1].max() + 1
-            curr_seq_len = caplen-level
+                log_probs = []
+                values = []
+                rewards = []
+                caplen = np.nonzero(captions == 2)[:,1].max() + 1
+                curr_seq_len = caplen-level
 
-            if (curr_seq_len >= 1):
-                captions_in = captions[:, :curr_seq_len]
-                features_in = features
+                if (curr_seq_len >= 1):
+                    captions_in = captions[:, :curr_seq_len]
+                    features_in = features
 
-                for step in range(level):
-                    value, probs = a2c_network(features_in, captions_in)
-                    probs = F.softmax(probs, dim=2)
+                    for step in range(level):
+                        value, probs = a2c_network(features_in, captions_in)
+                        probs = F.softmax(probs, dim=2)
 
-                    dist = probs.cpu().detach().numpy()[:,0]
-                    actions = []
-                    for i in range(dist.shape[0]):
-                        actions.append(np.random.choice(probs.shape[-1], p=dist[i]))
-                    actions = torch.from_numpy(np.array(actions))
+                        dist = probs.cpu().detach().numpy()[:,0]
+                        actions = []
+                        for i in range(dist.shape[0]):
+                            actions.append(np.random.choice(probs.shape[-1], p=dist[i]))
+                        actions = torch.from_numpy(np.array(actions))
 
-                    gen_cap = actions.unsqueeze(-1).to(device)
-                    captions_in = torch.cat((captions_in, gen_cap), axis=1)
-                    log_prob = torch.log(probs[:,0,:].gather(1, actions.view(-1,1).to(device)))
+                        gen_cap = actions.unsqueeze(-1).to(device)
+                        captions_in = torch.cat((captions_in, gen_cap), axis=1)
+                        log_prob = torch.log(probs[:,0,:].gather(1, actions.view(-1,1).to(device)))
 
-                    reward = GetRewards(features_in, captions_in, reward_network)
+                        reward = GetRewards(features_in, captions_in, reward_network)
 
-                    rewards.append(reward)
-                    values.append(value)
-                    log_probs.append(log_prob)
+                        rewards.append(reward)
+                        values.append(value)
+                        log_probs.append(log_prob)
 
-                    del gen_cap, probs
+                        del gen_cap, probs, actions, dist
 
-                values = torch.stack(values, axis=1).squeeze().to(device)
-                rewards = torch.stack(rewards, axis=1).squeeze().to(device)
-                log_probs = torch.stack(log_probs, axis=1).squeeze().to(device)
+                    values = torch.stack(values, axis=1).squeeze().to(device)
+                    rewards = torch.stack(rewards, axis=1).squeeze().to(device)
+                    log_probs = torch.stack(log_probs, axis=1).squeeze().to(device)
 
-                advantage = values - rewards 
-                actorLoss = (-log_probs * advantage).mean(axis=1)
-                criticLoss = 0.5 * advantage.pow(2).mean(axis=1)
+                    advantage = values - rewards 
+                    actorLoss = (-log_probs * advantage).mean(axis=1)
+                    criticLoss = 0.5 * advantage.pow(2).mean(axis=1)
 
-                loss = actorLoss + criticLoss
-                episodic_avg_loss = loss.mean().item()
+                    loss = actorLoss + criticLoss
+                    episodic_avg_loss = loss.mean().item()
 
-                if episodic_avg_loss < best_loss:
-                    best_loss = episodic_avg_loss
-                progress.set_description_str('Training A2C Curriculum Level: %s, Best Loss: %s' % (level, best_loss))
+                    if episodic_avg_loss < best_loss:
+                        best_loss = episodic_avg_loss
+                    progress.set_description_str('Training A2C Curriculum Level: %s, Best Loss: %s' % (level, best_loss))
 
-                optimizer.zero_grad()
-                loss.mean().backward(retain_graph=True)
-                optimizer.step()
+                    optimizer.zero_grad()
+                    loss.mean().backward(retain_graph=True)
+                    optimizer.step()
 
-                # Summary Writer
-                writer_var_name = 'A2C Curriculum' + ' Level-' + str(level) + '-loss'
-                a2c_train_curriculum_writer.add_scalar(writer_var_name, episodic_avg_loss, epoch)
-                writer_var_name = 'A2C Curriculum' + ' Level-' + str(level) + '-mean-rewards'
-                a2c_train_curriculum_writer.add_scalar(writer_var_name, rewards.mean(), epoch)
-                writer_var_name = 'A2C Curriculum' + ' Level-' + str(level) + '-mean-advantage'
-                a2c_train_curriculum_writer.add_scalar(writer_var_name, advantage.mean().item(), epoch)
+                    # Summary Writer
+                    writer_var_name = 'A2C Curriculum' + ' Level-' + str(level) + '-loss'
+                    a2c_train_curriculum_writer.add_scalar(writer_var_name, episodic_avg_loss, epoch)
+                    writer_var_name = 'A2C Curriculum' + ' Level-' + str(level) + '-mean-rewards'
+                    a2c_train_curriculum_writer.add_scalar(writer_var_name, rewards.mean(), epoch)
+                    writer_var_name = 'A2C Curriculum' + ' Level-' + str(level) + '-mean-advantage'
+                    a2c_train_curriculum_writer.add_scalar(writer_var_name, advantage.mean().item(), epoch)
 
-            del log_probs, values, rewards
+                    log_probs.detach()
+                    values.detach()
+                    rewards.detach()
+                del log_probs, values, rewards
 
-            # a2c_network.value_network.valrnn.hidden_cell = repackage_hidden(a2c_network.value_network.valrnn.hidden_cell)
-            a2c_network.value_network.valrnn.init_hidden()
+                # a2c_network.value_network.valrnn.hidden_cell = repackage_hidden(a2c_network.value_network.valrnn.hidden_cell)
+                reward_network.rewrnn.init_hidden()
+                a2c_network.value_network.valrnn.init_hidden()
 
     return a2c_network
 
