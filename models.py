@@ -4,8 +4,15 @@ from torch.nn import functional as F
 import numpy as np
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 MAX_SEQ_LEN = 17
+
+def repackage_hidden(h):
+    """Wraps hidden states in new Tensors, to detach them from their history."""
+
+    if isinstance(h, torch.Tensor):
+        return h.detach().to(device)
+    else:
+        return tuple(repackage_hidden(v) for v in h)
 
 
 class PolicyNetwork(nn.Module):
