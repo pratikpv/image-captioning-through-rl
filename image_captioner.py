@@ -101,7 +101,7 @@ def main(args):
         print_green(f'[Info] Training A2C Network')
         a2c_network = train_a2c_network(train_data=data, \
                         save_paths=save_paths, network_paths=network_paths, \
-                            plot_dir=LOG_DIR, epoch_count=args.epochs, batch_size=args.episodes, \
+                            plot_dir=LOG_DIR, epochs=args.epochs, batch_size=args.batch_size, \
                                     retrain_all=args.retrain, curriculum=curriculum)
         print_green(f'[Info] A2C Network trained')
 
@@ -129,8 +129,8 @@ if __name__ == "__main__":
     parser.add_argument('--training_size', type=int, help='Size of the training set to use (set 0 for the full set)', default=0)
     parser.add_argument('--test_size', type=int, help='Size of the test set to use', default=40504)
 
-    parser.add_argument('--epochs', type=int, help='Number of Epochs to use for Training the A2C Network', default=10000)
-    parser.add_argument('--episodes', type=int, help='Number of Episodes to use for Training the A2C Network', default=512)
+    parser.add_argument('--epochs', type=int, help='Number of Epochs to use for Training the A2C Network', default=100)
+    parser.add_argument('--batch_size', type=int, help='Number of Episodes (Batch Size) to use for Training the A2C Network', default=512)
 
     parser.add_argument('--retrain', action='store_true', help='Whether to retrain value, policy and reward networks', default=False)
     parser.add_argument('--postprocess', action='store_true', help='Post process data to download images from the validation cycle', default=False)
