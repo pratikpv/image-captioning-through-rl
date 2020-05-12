@@ -19,7 +19,8 @@ RESULTS_FILE = 'results.txt'
 
 BEST_SCORE_FILENAME = 'best_scores.txt'
 BEST_SCORE_IMAGES_PATH = 'best_scores_images'
-CURRICILUM_LEVELS = [2,3,5,7,11,13]
+# CURRICILUM_LEVELS = [2, 4, 6, 8, 10, 12, 14, 16]
+CURRICILUM_LEVELS = [3, 6, 9, 12, 15]
 
 def setup(args):
 
@@ -95,13 +96,12 @@ def main(args):
         data["embeddings"] = load_word_embeddings(args.train_word2vec, data, train_corpus)
         print_green(f'[Info] Done Loading Word Embeddings')
 
-        with torch.autograd.set_detect_anomaly(True):
-            print_green(f'[Info] Training A2C Network')
-            a2c_network = train_a2c_network(train_data=data, \
-                            save_paths=save_paths, network_paths=network_paths, \
-                                plot_dir=LOG_DIR, epoch_count=args.epochs, episodes=args.episodes, \
-                                        retrain_all=args.retrain, curriculum=curriculum)
-            print_green(f'[Info] A2C Network trained')
+        print_green(f'[Info] Training A2C Network')
+        a2c_network = train_a2c_network(train_data=data, \
+                        save_paths=save_paths, network_paths=network_paths, \
+                            plot_dir=LOG_DIR, epoch_count=args.epochs, batch_size=args.episodes, \
+                                    retrain_all=args.retrain, curriculum=curriculum)
+        print_green(f'[Info] A2C Network trained')
 
     print_green(f'[Info] Testing A2C Network')
     test_a2c_network(a2c_network, test_data=data, \
@@ -128,7 +128,7 @@ if __name__ == "__main__":
     parser.add_argument('--test_size', type=int, help='Size of the test set to use', default=40504)
 
     parser.add_argument('--epochs', type=int, help='Number of Epochs to use for Training the A2C Network', default=10000)
-    parser.add_argument('--episodes', type=int, help='Number of Episodes to use for Training the A2C Network', default=100)
+    parser.add_argument('--episodes', type=int, help='Number of Episodes to use for Training the A2C Network', default=512)
 
     parser.add_argument('--retrain', action='store_true', help='Whether to retrain value, policy and reward networks', default=False)
     parser.add_argument('--postprocess', action='store_true', help='Post process data to download images from the validation cycle', default=False)

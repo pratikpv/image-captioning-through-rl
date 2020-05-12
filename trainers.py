@@ -26,7 +26,7 @@ def VisualSemanticEmbeddingLoss(visuals, semantics):
     
     return visloss + semloss
 
-def GenerateCaptions(features, captions, policy_network):
+def GenerateCaptionsGreedy(features, captions, policy_network):
     features = torch.tensor(features, device=device).float().unsqueeze(0)
     gen_caps = torch.tensor(captions[:, 0:1], device=device).long()
     for t in range(MAX_SEQ_LEN - 1):
@@ -75,14 +75,12 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epo
 
     reward_network = RewardNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"]).to(device)
     reward_network.load_state_dict(torch.load(network_paths["reward_network"], map_location=device))
-    for param in reward_network.parameters():
-        param.require_grad = False
+    reward_network.requires_grad_(False)
 
 
     policy_network = PolicyNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"]).to(device)
     policy_network.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
-    for param in policy_network.parameters():
-        param.require_grad = False
+    policy_network.requires_grad_(False)
 
 
     value_network = ValueNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"]).to(device)
@@ -99,7 +97,7 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epo
         features = torch.tensor(features, device=device).float()
 
         # Generate captions using the policy network
-        captions = GenerateCaptions(features, captions, policy_network)
+        captions = GenerateCaptionsGreedy(features, captions, policy_network)
 
         # Compute the reward of the generated caption using reward network
         rewards = GetRewards(features, captions, reward_network)
@@ -118,11 +116,12 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epo
         value_writer.add_scalar('Value Network-loss', loss, epoch)
 
         optimizer.zero_grad()
-        loss.backward()
+        loss.backward(retain_graph=True)
         optimizer.step()
 
-        value_network.valrnn.hidden_cell[0].detach()
-        value_network.valrnn.hidden_cell[1].detach()
+        # value_network.valrnn.hidden_cell = repackage_hidden(value_network.valrnn.hidden_cell)
+        value_network.valrnn.init_hidden()
+        reward_network.rewrnn.init_hidden()
     
     return value_network
 
@@ -192,23 +191,25 @@ def train_reward_network(train_data, network_paths, plot_dir, batch_size=256, ep
         reward_writer.add_scalar('Reward Network-loss', loss, epoch)
 
         optimizer.zero_grad()
-        loss.backward()
+        loss.backward(retain_graph=True)
         optimizer.step()
-        reward_network.rewrnn.hidden_cell.detach()
+
+        # reward_network.rewrnn.hidden_cell = repackage_hidden(reward_network.rewrnn.hidden_cell)
+        reward_network.rewrnn.init_hidden()
 
     return reward_network
 
 
-def train_a2c_network(train_data, save_paths, network_paths, plot_dir, epoch_count, episodes, retrain_all=False, curriculum=None):
+def train_a2c_network(train_data, save_paths, network_paths, plot_dir, epoch_count, batch_size, retrain_all=False, curriculum=None):
     
     model_save_path = save_paths["model_path"]
     results_save_path = save_paths["results_path"]
 
     if retrain_all:
         print_green(f'[Training] Training all the networks')
-        reward_network = train_reward_network(train_data, network_paths, plot_dir)
-        policy_network = train_policy_network(train_data, network_paths, plot_dir)
-        value_network = train_value_network(train_data, network_paths, plot_dir)
+        reward_network = train_reward_network(train_data, network_paths, plot_dir, batch_size=batch_size)
+        policy_network = train_policy_network(train_data, network_paths, plot_dir, batch_size=batch_size)
+        value_network = train_value_network(train_data, network_paths, plot_dir, batch_size=batch_size)
         print_green(f'[Training] All networks trained')
 
     else:
@@ -218,37 +219,41 @@ def train_a2c_network(train_data, save_paths, network_paths, plot_dir, epoch_cou
             print(f'[Training] loaded reward network')
         except FileNotFoundError:
             print(f'[Training] reward network not found')
-            reward_network = train_reward_network(train_data, network_paths, plot_dir)
+            del reward_network
+            reward_network = train_reward_network(train_data, network_paths, plot_dir, batch_size=batch_size)
         try:
             policy_network = PolicyNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"]).to(device)
             policy_network.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
             print(f'[Training] loaded policy network')
         except FileNotFoundError:
+            del policy_network
             print(f'[Training] policy network not found')
-            policy_network = train_policy_network(train_data, network_paths, plot_dir)
+            policy_network = train_policy_network(train_data, network_paths, plot_dir, batch_size=batch_size)
         try:
             value_network = ValueNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"]).to(device)
             value_network.load_state_dict(torch.load(network_paths["value_network"], map_location=device))
             print(f'[Training] loaded value network')
         except FileNotFoundError:
+            del value_network
             print(f'[Training] value network not found')
-            value_network = train_value_network(train_data, network_paths, plot_dir)
+            value_network = train_value_network(train_data, network_paths, plot_dir, batch_size=batch_size)
 
-    for param in reward_network.parameters():
-        param.require_grad = False
+    reward_network.requires_grad_(False)
 
     a2c_network = AdvantageActorCriticNetwork(value_network, policy_network).to(device)
     a2c_network.train(True)
+
     optimizer = optim.Adam(a2c_network.parameters(), lr=0.0001)
 
     print(f'[Training] train_data len = {len(train_data["train_captions"])}')
-    print(f'[Training] episodes = {episodes}')
+    print(f'[Training] episodes = {batch_size}')
     print(f'[Training] epoch_count = {epoch_count}')
 
     if curriculum is None:
-        a2c_network = a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, episodes, epoch_count)
+        a2c_network = a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, batch_size, epoch_count)
     else:
-        a2c_network = a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, plot_dir, episodes, epoch_count, curriculum)
+        a2c_network = a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, plot_dir, batch_size, epoch_count, curriculum)
+        a2c_network = a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, batch_size, epoch_count)
 
     torch.save(a2c_network.state_dict(), model_save_path)
     with open(results_save_path, 'a') as f:
@@ -259,7 +264,7 @@ def train_a2c_network(train_data, save_paths, network_paths, plot_dir, epoch_cou
     return a2c_network
 
 
-def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, episodes, epoch_count):
+def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, batch_size, epoch_count):
 
     a2c_train_writer = SummaryWriter(log_dir=os.path.join(plot_dir,'runs'))
 
@@ -270,7 +275,7 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, e
     for epoch in progress:
         episodic_avg_loss = 0
 
-        captions, features, _ = get_coco_batch(train_data, batch_size=episodes, split='train')
+        captions, features, _ = get_coco_batch(train_data, batch_size=batch_size, split='train')
         features = torch.tensor(features, device=device).float()
         captions = torch.tensor(captions, device=device).long()
 
@@ -317,13 +322,14 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, e
         a2c_train_writer.add_scalar('A2C Network-episodic-mean-rewards', rewards.mean(), epoch)
         a2c_train_writer.add_scalar('A2C Network-episodic-mean-advantage', advantage.mean().item(), epoch)
 
-        a2c_network.value_network.valrnn.hidden_cell[0].detach()
-        a2c_network.value_network.valrnn.hidden_cell[1].detach()
+        del gen_cap, probs
+        # a2c_network.value_network.valrnn.hidden_cell = repackage_hidden(a2c_network.value_network.valrnn.hidden_cell)
+        a2c_network.value_network.valrnn.init_hidden()
 
     return a2c_network
 
 
-def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, plot_dir, episodes, epoch_count, curriculum):
+def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, plot_dir, batch_size, epoch_count, curriculum):
 
     a2c_train_curriculum_writer = SummaryWriter(log_dir=os.path.join(plot_dir,'runs'))
 
@@ -339,7 +345,7 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
         for epoch in progress:
             episodic_avg_loss = 0
 
-            captions, features, _ = get_coco_batch(train_data, batch_size=episodes, split='train')
+            captions, features, _ = get_coco_batch(train_data, batch_size=batch_size, split='train')
             features = torch.tensor(features, device=device).float()
             captions = torch.tensor(captions, device=device).long()
 
@@ -347,9 +353,10 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
             values = []
             rewards = []
             caplen = np.nonzero(captions == 2)[:,1].max() + 1
+            curr_seq_len = caplen-level
 
-            if (caplen - level > 1):
-                captions_in = captions[:, :caplen-level]
+            if (curr_seq_len >= 1):
+                captions_in = captions[:, :curr_seq_len]
                 features_in = features
 
                 for step in range(level):
@@ -371,6 +378,8 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
                     rewards.append(reward)
                     values.append(value)
                     log_probs.append(log_prob)
+
+                    del gen_cap, probs
 
                 values = torch.stack(values, axis=1).squeeze().to(device)
                 rewards = torch.stack(rewards, axis=1).squeeze().to(device)
@@ -399,8 +408,10 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
                 writer_var_name = 'A2C Curriculum' + ' Level-' + str(level) + '-mean-advantage'
                 a2c_train_curriculum_writer.add_scalar(writer_var_name, advantage.mean().item(), epoch)
 
-            a2c_network.value_network.valrnn.hidden_cell[0].detach()
-            a2c_network.value_network.valrnn.hidden_cell[1].detach()
+            del log_probs, values, rewards
+
+            # a2c_network.value_network.valrnn.hidden_cell = repackage_hidden(a2c_network.value_network.valrnn.hidden_cell)
+            a2c_network.value_network.valrnn.init_hidden()
 
     return a2c_network
 
@@ -439,8 +450,8 @@ def test_a2c_network(a2c_network, test_data, image_caption_data, data_size, vali
             generated_captions_file.flush()
             image_url_file.flush()
 
-            a2c_network.value_network.valrnn.hidden_cell[0].detach()
-            a2c_network.value_network.valrnn.hidden_cell[1].detach()
+            # a2c_network.value_network.valrnn.hidden_cell = repackage_hidden(a2c_network.value_network.valrnn.hidden_cell)
+            a2c_network.value_network.valrnn.init_hidden()
 
         real_captions_file.close()
         generated_captions_file.close()
