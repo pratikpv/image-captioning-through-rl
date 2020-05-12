@@ -149,6 +149,9 @@ def image_from_url(url):
     return img
 
 
+def global_minibatch_number(epoch, batch_id, batch_size):
+    return epoch*batch_size + batch_id
+
 def print_garbage_collection():
     print("-" * 30)
     for obj in gc.get_objects():
