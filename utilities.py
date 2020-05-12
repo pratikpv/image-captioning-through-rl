@@ -197,11 +197,11 @@ def post_process_data(image_caption_data, top_item_count=5):
 
 def load_a2c_models(model_path, train_data, network_paths):
     
-    policy_network = PolicyNetwork(train_data["word_to_idx"]).to(device)
+    policy_network = PolicyNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"]).to(device)
     policy_network.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
     policy_network.train(mode=False)
 
-    value_network = ValueNetwork(train_data["word_to_idx"]).to(device)
+    value_network = ValueNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"]).to(device)
     value_network.load_state_dict(torch.load(network_paths["value_network"], map_location=device))
     value_network.train(mode=False)
 

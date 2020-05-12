@@ -77,6 +77,17 @@ def main(args):
     data = load_data(base_dir=BASE_DIR, max_train=max_train, print_keys=True)
     print_green(f'[Info] COCO dataset loaded')
 
+    train_corpus = None
+    if args.train_word2vec != "none":
+        print_green(f'[Info] Loading Word Embeddings {args.train_word2vec}')
+        print_green(f'[Info] Loading Corpus')
+        train_corpus = get_preprocessed_corpus(BASE_DIR)
+        print_green(f'[Info] Corpus Loaded With {len(train_corpus)} Lines')
+        data["embeddings"] = load_word_embeddings(args.train_word2vec, data, train_corpus)
+        print_green(f'[Info] Done Loading Word Embeddings')
+    else:
+        data["embeddings"] = None
+
     if os.path.isfile(args.test_model) and "a2cNetwork" in os.path.split(args.test_model)[1]:
         print_green(f'[Info] Loading A2C Network')
         a2c_network = load_a2c_models(args.test_model, data, network_paths)
@@ -86,15 +97,6 @@ def main(args):
             curriculum = CURRICILUM_LEVELS
         else:
             curriculum = None
-
-        print_green(f'[Info] Loading Word Embeddings {args.train_word2vec}')
-        train_corpus = None
-        if args.train_word2vec != "none":
-            print_green(f'[Info] Loading Corpus')
-            train_corpus = get_preprocessed_corpus(BASE_DIR)
-            print_green(f'[Info] Corpus Loaded With {len(train_corpus)} Lines')
-        data["embeddings"] = load_word_embeddings(args.train_word2vec, data, train_corpus)
-        print_green(f'[Info] Done Loading Word Embeddings')
 
         print_green(f'[Info] Training A2C Network')
         a2c_network = train_a2c_network(train_data=data, \
