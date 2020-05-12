@@ -1,5 +1,6 @@
 import time
 import random
+import math
 import torch.optim as optim
 from tqdm import tqdm
 from utilities import *
@@ -94,6 +95,7 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=512, epo
     
     for epoch in range(epochs):
         batch_progress = tqdm(get_coco_batches(train_data, batch_size=batch_size, split='train'), 
+                            total=math.ceil(train_data['train_captions'].shape[0]/batch_size), 
                             desc='Training Value Network (%s/%s): Best Loss %s' % (epoch+1, epochs, best_loss))
         for coco_batch in batch_progress:
 
@@ -144,6 +146,7 @@ def train_policy_network(train_data, network_paths, plot_dir, batch_size=512, ep
     for epoch in range(epochs):
 
         batch_progress = tqdm(get_coco_batches(train_data, batch_size=batch_size, split='train'), 
+                            total=math.ceil(train_data['train_captions'].shape[0]/batch_size), 
                             desc='Training Policy Network (%s/%s): Best Loss %s' % (epoch, epochs, best_loss))
         for coco_batch in batch_progress:
 
@@ -154,10 +157,10 @@ def train_policy_network(train_data, network_paths, plot_dir, batch_size=512, ep
             output = policy_network(features, captions_in)
 
             loss = 0
-            for i in range(batch_size):
+            for i in range(captions.shape[0]):
                 # '2' is the end of segment, hence points to caption length
                 caplen = np.nonzero(captions[i] == 2)[0][0] + 1
-                loss += (caplen / batch_size) * criterion(output[i][:caplen], captions_out[i][:caplen])
+                loss += (caplen / captions.shape[0]) * criterion(output[i][:caplen], captions_out[i][:caplen])
 
             if loss.item() < best_loss:
                 best_loss = loss.item()
@@ -185,6 +188,7 @@ def train_reward_network(train_data, network_paths, plot_dir, batch_size=512, ep
     for epoch in range(epochs):
 
         batch_progress = tqdm(get_coco_batches(train_data, batch_size=batch_size, split='train'), 
+                            total=math.ceil(train_data['train_captions'].shape[0]/batch_size), 
                             desc='Training Reward Network (%s/%s): Best Loss %s' % (epoch, epochs, best_loss))
         for coco_batch in batch_progress:
 
@@ -286,6 +290,7 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, b
     for epoch in range(epochs):
 
         batch_progress = tqdm(get_coco_batches(train_data, batch_size=batch_size, split='train'), 
+                            total=math.ceil(train_data['train_captions'].shape[0]/batch_size), 
                             desc='Training A2C Network (%s/%s): Best Loss %s' % (epoch, epochs, best_loss))
         for coco_batch in batch_progress:
     
@@ -358,6 +363,7 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
         for epoch in range(epochs):
 
             batch_progress = tqdm(get_coco_batches(train_data, batch_size=batch_size, split='train'), 
+                                total=math.ceil(train_data['train_captions'].shape[0]/batch_size), 
                                 desc='Training A2C Curriculum Level %s (%s/%s): Best Loss: %s' % (level, epoch, epochs, best_loss))
             for coco_batch in batch_progress:
 

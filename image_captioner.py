@@ -101,7 +101,7 @@ def main(args):
         print_green(f'[Info] Training A2C Network')
         a2c_network = train_a2c_network(train_data=data, \
                         save_paths=save_paths, network_paths=network_paths, \
-                            plot_dir=LOG_DIR, epochs=args.epochs, batch_size=args.episodes, \
+                            plot_dir=LOG_DIR, epochs=args.epochs, batch_size=args.batch_size, \
                                     retrain_all=args.retrain, curriculum=curriculum)
         print_green(f'[Info] A2C Network trained')
 
