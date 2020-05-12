@@ -69,7 +69,7 @@ def GetRewards(features, captions, reward_network):
     return rewards
 
 
-def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epochs=50000):
+def train_value_network(train_data, network_paths, plot_dir, batch_size=512, epochs=500):
 
     value_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
 
@@ -91,10 +91,11 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epo
 
     best_loss = float('inf')
     print_green(f'[Training] Training Value Network')
-    progress = tqdm(range(epochs), desc='Training Value Network: Best Loss %s' % best_loss)
     
-    for epoch in progress:
-        for coco_batch in get_coco_batches(train_data, batch_size=batch_size, split='train'):
+    for epoch in range(epochs):
+        batch_progress = tqdm(get_coco_batches(train_data, batch_size=batch_size, split='train'), 
+                            desc='Training Value Network (%s/%s): Best Loss %s' % (epoch+1, epochs, best_loss))
+        for coco_batch in batch_progress:
 
             captions, features, _ = coco_batch
             features = torch.tensor(features, device=device).float()
@@ -114,7 +115,7 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epo
             if loss.item() < best_loss:
                 best_loss = loss.item()
                 torch.save(value_network.state_dict(), network_paths["value_network"])
-                progress.set_description_str('Training Value Network: Best Loss %s' % best_loss)
+                batch_progress.set_description_str('Training Value Network (%s/%s): Best Loss %s' % (epoch, epochs, best_loss))
 
             value_writer.add_scalar('Value Network-loss', loss, epoch)
 
@@ -129,7 +130,7 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=256, epo
     return value_network
 
 
-def train_policy_network(train_data, network_paths, plot_dir, batch_size=256, epochs=100000):
+def train_policy_network(train_data, network_paths, plot_dir, batch_size=512, epochs=500):
 
     policy_network = PolicyNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"]).to(device)
     criterion = nn.CrossEntropyLoss().to(device)
@@ -139,10 +140,12 @@ def train_policy_network(train_data, network_paths, plot_dir, batch_size=256, ep
 
     best_loss = float("inf")
     print_green(f'[Training] Training Policy Network')
-    progress = tqdm(range(epochs), desc='Training Policy Network: Best Loss %s' % best_loss)
 
-    for epoch in progress:
-        for coco_batch in get_coco_batches(train_data, batch_size=batch_size, split='train'):
+    for epoch in range(epochs):
+
+        batch_progress = tqdm(get_coco_batches(train_data, batch_size=batch_size, split='train'), 
+                            desc='Training Policy Network (%s/%s): Best Loss %s' % (epoch, epochs, best_loss))
+        for coco_batch in batch_progress:
 
             captions, features, _ = coco_batch
             features = torch.tensor(features, device=device).float().unsqueeze(0)
@@ -159,7 +162,7 @@ def train_policy_network(train_data, network_paths, plot_dir, batch_size=256, ep
             if loss.item() < best_loss:
                 best_loss = loss.item()
                 torch.save(policy_network.state_dict(), network_paths["policy_network"])
-                progress.set_description_str('Training Policy Network: Best Loss %s' % best_loss)
+                batch_progress.set_description_str('Training Policy Network (%s/%s): Best Loss %s' % (epoch, epochs, best_loss))
 
             policy_writer.add_scalar('Policy Network-loss', loss, epoch)
 
@@ -170,7 +173,7 @@ def train_policy_network(train_data, network_paths, plot_dir, batch_size=256, ep
     return policy_network
 
 
-def train_reward_network(train_data, network_paths, plot_dir, batch_size=256, epochs=50000):
+def train_reward_network(train_data, network_paths, plot_dir, batch_size=512, epochs=500):
 
     reward_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
     reward_network = RewardNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"]).to(device)
@@ -178,10 +181,12 @@ def train_reward_network(train_data, network_paths, plot_dir, batch_size=256, ep
 
     best_loss = float('inf')
     print_green(f'[Training] Training Reward Network')
-    progress = tqdm(range(epochs), desc='Training Reward Network: Best Loss %s' % best_loss)
 
-    for epoch in progress:
-        for coco_batch in get_coco_batches(train_data, batch_size=batch_size, split='train'):
+    for epoch in range(epochs):
+
+        batch_progress = tqdm(get_coco_batches(train_data, batch_size=batch_size, split='train'), 
+                            desc='Training Reward Network (%s/%s): Best Loss %s' % (epoch, epochs, best_loss))
+        for coco_batch in batch_progress:
 
             captions, features, _ = coco_batch
             features = torch.tensor(features, device=device).float()
@@ -192,7 +197,7 @@ def train_reward_network(train_data, network_paths, plot_dir, batch_size=256, ep
             if loss.item() < best_loss:
                 best_loss = loss.item()
                 torch.save(reward_network.state_dict(), network_paths["reward_network"])
-                progress.set_description_str('Training Reward Network: Best Loss %s' % best_loss)
+                batch_progress.set_description_str('Training Reward Network (%s/%s): Best Loss %s' % (epoch, epochs, best_loss))
 
             reward_writer.add_scalar('Reward Network-loss', loss, epoch)
 
@@ -206,7 +211,7 @@ def train_reward_network(train_data, network_paths, plot_dir, batch_size=256, ep
     return reward_network
 
 
-def train_a2c_network(train_data, save_paths, network_paths, plot_dir, epoch_count, batch_size, retrain_all=False, curriculum=None):
+def train_a2c_network(train_data, save_paths, network_paths, plot_dir, epochs, batch_size, retrain_all=False, curriculum=None):
     
     model_save_path = save_paths["model_path"]
     results_save_path = save_paths["results_path"]
@@ -254,13 +259,13 @@ def train_a2c_network(train_data, save_paths, network_paths, plot_dir, epoch_cou
 
     print(f'[Training] train_data len = {len(train_data["train_captions"])}')
     print(f'[Training] episodes = {batch_size}')
-    print(f'[Training] epoch_count = {epoch_count}')
+    print(f'[Training] epochs = {epochs}')
 
     if curriculum is None:
-        a2c_network = a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, batch_size, epoch_count)
+        a2c_network = a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, batch_size, epochs)
     else:
-        a2c_network = a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, plot_dir, batch_size, epoch_count, curriculum)
-        a2c_network = a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, batch_size, epoch_count)
+        a2c_network = a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, plot_dir, batch_size, epochs, curriculum)
+        a2c_network = a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, batch_size, epochs)
 
     torch.save(a2c_network.state_dict(), model_save_path)
     with open(results_save_path, 'a') as f:
@@ -271,16 +276,18 @@ def train_a2c_network(train_data, save_paths, network_paths, plot_dir, epoch_cou
     return a2c_network
 
 
-def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, batch_size, epoch_count):
+def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, batch_size, epochs):
 
     a2c_train_writer = SummaryWriter(log_dir=os.path.join(plot_dir,'runs'))
 
     print_green(f'[Training] Training Advantage Actor-Critic Network')
     best_loss = float('inf')
-    progress = tqdm(range(epoch_count), desc='Training A2C Network: Advantage: %s, Best Loss %s' % (None, best_loss))
     
-    for epoch in progress:
-        for coco_batch in get_coco_batches(train_data, batch_size=batch_size, split='train'):
+    for epoch in range(epochs):
+
+        batch_progress = tqdm(get_coco_batches(train_data, batch_size=batch_size, split='train'), 
+                            desc='Training A2C Network (%s/%s): Best Loss %s' % (epoch, epochs, best_loss))
+        for coco_batch in batch_progress:
     
             captions, features, _ = coco_batch
             features = torch.tensor(features, device=device).float()
@@ -322,7 +329,7 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, b
 
             if episodic_avg_loss < best_loss:
                 best_loss = episodic_avg_loss
-            progress.set_description_str('Training A2C Network: Best Loss %s' % (best_loss))
+            batch_progress.set_description_str('Training A2C Network (%s/%s): Best Loss %s' % (epoch, epochs, best_loss))
 
             # Summary Writer
             a2c_train_writer.add_scalar('A2C Network-episodic-loss', episodic_avg_loss, epoch)
@@ -337,21 +344,22 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, b
     return a2c_network
 
 
-def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, plot_dir, batch_size, epoch_count, curriculum):
+def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, plot_dir, batch_size, epochs, curriculum):
 
     a2c_train_curriculum_writer = SummaryWriter(log_dir=os.path.join(plot_dir,'runs'))
 
     print_green(f'[Training] Training Advantage Actor-Critic Network')
     print_green(f'[Training] mode set to curriculum training using levels: {curriculum}')
-
     best_loss = float('inf')
-    for level in curriculum:
 
+    for level in curriculum:
         print_green(f'[Training] Training curriculum level: {level}')
-        progress = tqdm(range(epoch_count), desc='Training A2C Curriculum Level: %s, Advantage: %s, Best Loss: %s' % (level, None, best_loss))
-        
-        for epoch in progress:
-            for coco_batch in get_coco_batches(train_data, batch_size=batch_size, split='train'):
+
+        for epoch in range(epochs):
+
+            batch_progress = tqdm(get_coco_batches(train_data, batch_size=batch_size, split='train'), 
+                                desc='Training A2C Curriculum Level %s (%s/%s): Best Loss: %s' % (level, epoch, epochs, best_loss))
+            for coco_batch in batch_progress:
 
                 captions, features, _ = coco_batch
                 features = torch.tensor(features, device=device).float()
@@ -402,7 +410,7 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
 
                     if episodic_avg_loss < best_loss:
                         best_loss = episodic_avg_loss
-                    progress.set_description_str('Training A2C Curriculum Level: %s, Best Loss: %s' % (level, best_loss))
+                    batch_progress.set_description_str('Training A2C Curriculum Level %s (%s/%s): Best Loss: %s' % (level, epoch, epochs, best_loss))
 
                     optimizer.zero_grad()
                     loss.mean().backward(retain_graph=True)
