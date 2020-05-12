@@ -97,9 +97,9 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=512, epo
         batch_progress = tqdm(get_coco_minibatches(train_data, batch_size=batch_size, split='train'), 
                             total=math.ceil(train_data['train_captions'].shape[0]/batch_size), 
                             desc='Training Value Network (%s/%s): Best Loss %s' % (epoch+1, epochs, best_loss))
-        for coco_batch in batch_progress:
+        for minibatch_id, coco_minibatch in enumerate(batch_progress):
 
-            captions, features, _ = coco_batch
+            captions, features, _ = coco_minibatch
             features = torch.tensor(features, device=device).float()
 
             # Generate captions using the policy network
@@ -119,7 +119,8 @@ def train_value_network(train_data, network_paths, plot_dir, batch_size=512, epo
                 torch.save(value_network.state_dict(), network_paths["value_network"])
                 batch_progress.set_description_str('Training Value Network (%s/%s): Best Loss %s' % (epoch+1, epochs, best_loss))
 
-            value_writer.add_scalar('Value Network-loss', loss, epoch)
+            minibatch_number = global_minibatch_number(epoch, minibatch_id, batch_size)
+            value_writer.add_scalar('Value Network-loss', loss, minibatch_number)
 
             optimizer.zero_grad()
             loss.backward(retain_graph=True)
@@ -148,9 +149,9 @@ def train_policy_network(train_data, network_paths, plot_dir, batch_size=512, ep
         batch_progress = tqdm(get_coco_minibatches(train_data, batch_size=batch_size, split='train'), 
                             total=math.ceil(train_data['train_captions'].shape[0]/batch_size), 
                             desc='Training Policy Network (%s/%s): Best Loss %s' % (epoch+1, epochs, best_loss))
-        for coco_batch in batch_progress:
+        for minibatch_id, coco_minibatch in enumerate(batch_progress):
 
-            captions, features, _ = coco_batch
+            captions, features, _ = coco_minibatch
             features = torch.tensor(features, device=device).float().unsqueeze(0)
             captions_in = torch.tensor(captions[:, :-1], device=device).long()
             captions_out = torch.tensor(captions[:, 1:], device=device).long()
@@ -167,7 +168,8 @@ def train_policy_network(train_data, network_paths, plot_dir, batch_size=512, ep
                 torch.save(policy_network.state_dict(), network_paths["policy_network"])
                 batch_progress.set_description_str('Training Policy Network (%s/%s): Best Loss %s' % (epoch+1, epochs, best_loss))
 
-            policy_writer.add_scalar('Policy Network-loss', loss, epoch)
+            minibatch_number = global_minibatch_number(epoch, minibatch_id, batch_size)
+            policy_writer.add_scalar('Policy Network-loss', loss, minibatch_number)
 
             optimizer.zero_grad()
             loss.backward()
@@ -190,9 +192,9 @@ def train_reward_network(train_data, network_paths, plot_dir, batch_size=512, ep
         batch_progress = tqdm(get_coco_minibatches(train_data, batch_size=batch_size, split='train'), 
                             total=math.ceil(train_data['train_captions'].shape[0]/batch_size), 
                             desc='Training Reward Network (%s/%s): Best Loss %s' % (epoch+1, epochs, best_loss))
-        for coco_batch in batch_progress:
+        for minibatch_id, coco_minibatch in enumerate(batch_progress):
 
-            captions, features, _ = coco_batch
+            captions, features, _ = coco_minibatch
             features = torch.tensor(features, device=device).float()
             captions = torch.tensor(captions, device=device).long()
             ve, se = reward_network(features, captions)
@@ -203,7 +205,8 @@ def train_reward_network(train_data, network_paths, plot_dir, batch_size=512, ep
                 torch.save(reward_network.state_dict(), network_paths["reward_network"])
                 batch_progress.set_description_str('Training Reward Network (%s/%s): Best Loss %s' % (epoch+1, epochs, best_loss))
 
-            reward_writer.add_scalar('Reward Network-loss', loss, epoch)
+            minibatch_number = global_minibatch_number(epoch, minibatch_id, batch_size)
+            reward_writer.add_scalar('Reward Network-loss', loss, minibatch_number)
 
             optimizer.zero_grad()
             loss.backward(retain_graph=True)
@@ -292,9 +295,9 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, b
         batch_progress = tqdm(get_coco_minibatches(train_data, batch_size=batch_size, split='train'), 
                             total=math.ceil(train_data['train_captions'].shape[0]/batch_size), 
                             desc='Training A2C Network (%s/%s): Best Loss %s' % (epoch+1, epochs, best_loss))
-        for coco_batch in batch_progress:
+        for minibatch_id, coco_minibatch in enumerate(batch_progress):
     
-            captions, features, _ = coco_batch
+            captions, features, _ = coco_minibatch
             features = torch.tensor(features, device=device).float()
             captions = torch.tensor(captions, device=device).long()
 
@@ -337,9 +340,10 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, b
             batch_progress.set_description_str('Training A2C Network (%s/%s): Best Loss %s' % (epoch+1, epochs, best_loss))
 
             # Summary Writer
-            a2c_train_writer.add_scalar('A2C Network-episodic-loss', episodic_avg_loss, epoch)
-            a2c_train_writer.add_scalar('A2C Network-episodic-mean-rewards', rewards.mean(), epoch)
-            a2c_train_writer.add_scalar('A2C Network-episodic-mean-advantage', advantage.mean().item(), epoch)
+            minibatch_number = global_minibatch_number(epoch, minibatch_id, batch_size)
+            a2c_train_writer.add_scalar('A2C Network-episodic-loss', episodic_avg_loss, minibatch_number)
+            a2c_train_writer.add_scalar('A2C Network-episodic-mean-rewards', rewards.mean(), minibatch_number)
+            a2c_train_writer.add_scalar('A2C Network-episodic-mean-advantage', advantage.mean().item(), minibatch_number)
 
             del gen_cap, probs
             # a2c_network.value_network.valrnn.hidden_cell = repackage_hidden(a2c_network.value_network.valrnn.hidden_cell)
@@ -365,9 +369,9 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
             batch_progress = tqdm(get_coco_minibatches(train_data, batch_size=batch_size, split='train'), 
                                 total=math.ceil(train_data['train_captions'].shape[0]/batch_size), 
                                 desc='Training A2C Curriculum Level %s (%s/%s): Best Loss: %s' % (level, epoch, epochs, best_loss))
-            for coco_batch in batch_progress:
+            for minibatch_id, coco_minibatch in enumerate(batch_progress):
 
-                captions, features, _ = coco_batch
+                captions, features, _ = coco_minibatch
                 features = torch.tensor(features, device=device).float()
                 captions = torch.tensor(captions, device=device).long()
 
@@ -423,12 +427,13 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
                     optimizer.step()
 
                     # Summary Writer
+                    minibatch_number = global_minibatch_number(epoch, minibatch_id, batch_size)
                     writer_var_name = 'A2C Curriculum' + ' Level-' + str(level) + '-loss'
-                    a2c_train_curriculum_writer.add_scalar(writer_var_name, episodic_avg_loss, epoch)
+                    a2c_train_curriculum_writer.add_scalar(writer_var_name, episodic_avg_loss, minibatch_number)
                     writer_var_name = 'A2C Curriculum' + ' Level-' + str(level) + '-mean-rewards'
-                    a2c_train_curriculum_writer.add_scalar(writer_var_name, rewards.mean(), epoch)
+                    a2c_train_curriculum_writer.add_scalar(writer_var_name, rewards.mean(), minibatch_number)
                     writer_var_name = 'A2C Curriculum' + ' Level-' + str(level) + '-mean-advantage'
-                    a2c_train_curriculum_writer.add_scalar(writer_var_name, advantage.mean().item(), epoch)
+                    a2c_train_curriculum_writer.add_scalar(writer_var_name, advantage.mean().item(), minibatch_number)
 
                     log_probs.detach()
                     values.detach()
