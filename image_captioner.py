@@ -75,6 +75,8 @@ def main(args):
 
     save_paths, image_caption_data, network_paths = setup(args)
 
+    print_green(f'[Info] Saving Logs in dir: {LOG_DIR}')
+
     max_train = None if args.training_size == 0 else args.training_size  # set None for whole training dataset
     max_train_str = '' if max_train == None else str(max_train)
     print_green(f'[Info] Loading COCO dataset {max_train_str}')

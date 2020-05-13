@@ -377,10 +377,10 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
 
     print_green(f'[Training] Training Advantage Actor-Critic Network')
     print_green(f'[Training] mode set to curriculum training using levels: {curriculum}')
-    best_loss = float('inf')
 
     for level in curriculum:
         print_green(f'[Training] Training curriculum level: {level}')
+        best_loss = float('inf')
 
         for epoch in range(epochs):
 
