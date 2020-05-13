@@ -268,14 +268,13 @@ def train_a2c_network(train_data, save_paths, network_paths, plot_dir, bidirecti
     print(f'[Training] episodes = {batch_size}')
     print(f'[Training] epochs = {epochs}')
 
+    save_paths = [model_save_path, network_paths["a2c_network"]]
     if curriculum is None:
-        a2c_network = a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, batch_size, epochs)
+        a2c_network = a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, save_paths, batch_size, epochs)
     else:
-        a2c_network = a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, plot_dir, batch_size, epochs, curriculum)
-        a2c_network = a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, batch_size, epochs)
+        a2c_network = a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, plot_dir, save_paths, batch_size, epochs, curriculum)
+        a2c_network = a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, save_paths, batch_size, epochs)
 
-    torch.save(a2c_network.state_dict(), model_save_path)
-    torch.save(a2c_network.state_dict(), network_paths["a2c_network"])
     with open(results_save_path, 'a') as f:
         f.write('\n' + '-' * 10 + ' network ' + '-' * 10 + '\n')
         f.write(str(a2c_network))
@@ -284,7 +283,7 @@ def train_a2c_network(train_data, save_paths, network_paths, plot_dir, bidirecti
     return a2c_network
 
 
-def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, batch_size, epochs):
+def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, save_paths, batch_size, epochs):
 
     a2c_train_writer = SummaryWriter(log_dir=os.path.join(plot_dir,'runs'))
 
@@ -338,7 +337,7 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, b
 
             if episodic_avg_loss < best_loss:
                 best_loss = episodic_avg_loss
-            batch_progress.set_description_str('Training A2C Network (%s/%s): Best Loss %s' % (epoch+1, epochs, best_loss))
+                batch_progress.set_description_str('Training A2C Network (%s/%s): Best Loss %s' % (epoch+1, epochs, best_loss))
 
             # Summary Writer
             minibatch_number = global_minibatch_number(epoch, minibatch_id, batch_size)
@@ -351,10 +350,12 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, b
             reward_network.rewrnn.init_hidden()
             a2c_network.value_network.valrnn.init_hidden()
 
+        save_a2c_model(a2c_network, save_paths)
+
     return a2c_network
 
 
-def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, plot_dir, batch_size, epochs, curriculum):
+def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, plot_dir, save_paths, batch_size, epochs, curriculum):
 
     a2c_train_curriculum_writer = SummaryWriter(log_dir=os.path.join(plot_dir,'runs'))
 
@@ -421,7 +422,7 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
 
                     if episodic_avg_loss < best_loss:
                         best_loss = episodic_avg_loss
-                    batch_progress.set_description_str('Training A2C Curriculum Level %s (%s/%s): Best Loss: %s' % (level, epoch, epochs, best_loss))
+                        batch_progress.set_description_str('Training A2C Curriculum Level %s (%s/%s): Best Loss: %s' % (level, epoch, epochs, best_loss))
 
                     optimizer.zero_grad()
                     loss.mean().backward(retain_graph=True)
@@ -444,6 +445,8 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
                 # a2c_network.value_network.valrnn.hidden_cell = repackage_hidden(a2c_network.value_network.valrnn.hidden_cell)
                 reward_network.rewrnn.init_hidden()
                 a2c_network.value_network.valrnn.init_hidden()
+
+            save_a2c_model(a2c_network, save_paths)
 
     return a2c_network
 

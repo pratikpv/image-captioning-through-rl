@@ -214,6 +214,16 @@ def post_process_data(image_caption_data, top_item_count=5):
     best_score_file.close()
 
 
+def save_a2c_model(model, save_paths):
+    from torch import save
+
+    if isinstance(save_paths, list):
+        for path in save_paths:
+            save(model.state_dict(), path)
+    elif isinstance(save_paths, str):
+        save(model.state_dict(), save_paths)
+
+
 def load_a2c_models(model_path, train_data, network_paths, bidirectional):
     
     policy_network = PolicyNetwork(train_data["word_to_idx"], \
