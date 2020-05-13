@@ -272,8 +272,9 @@ def train_a2c_network(train_data, save_paths, network_paths, plot_dir, bidirecti
     if curriculum is None:
         a2c_network = a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, save_paths, batch_size, epochs)
     else:
+        if 16 not in curriculum:
+            curriculum.append(16) # Final Curriculum Level, ie Full Training
         a2c_network = a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, plot_dir, save_paths, batch_size, epochs, curriculum)
-        a2c_network = a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, save_paths, batch_size, epochs)
 
     with open(results_save_path, 'a') as f:
         f.write('\n' + '-' * 10 + ' network ' + '-' * 10 + '\n')
@@ -301,28 +302,44 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, s
             features = torch.tensor(features, device=device).float()
             captions = torch.tensor(captions, device=device).long()
 
-            captions_in = captions
+            rewards = []
+            values = []
+            log_probs = []
+
+            caplen = np.nonzero(captions == 2)[:,1].max() + 1
+
+            captions_in = captions[:, :1]
             features_in = features
 
-            values, probs = a2c_network(features_in, captions_in)
+            for step in range(caplen-1):
 
-            probs = F.softmax(probs, dim=2)
-            dist = probs.cpu().detach().numpy()[:,0]
+                value, probs = a2c_network(features_in, captions_in)
+                probs = F.softmax(probs, dim=2)
+                dist = probs.cpu().detach().numpy()[:,0]
+                
+                actions = []
+                for i in range(dist.shape[0]):
+                    actions.append(np.random.choice(probs.shape[-1], p=dist[i]))
+                actions = torch.from_numpy(np.array(actions))
 
-            actions = []
-            for i in range(dist.shape[0]):
-                actions.append(np.random.choice(probs.shape[-1], p=dist[i]))
-            actions = torch.from_numpy(np.array(actions))
+                gen_cap = actions.unsqueeze(-1).to(device)
+                try:
+                    captions_in = torch.cat((captions_in, gen_cap), axis=1)
+                except:
+                    captions_in = torch.cat((captions_in, gen_cap.long()), axis=1)
 
-            gen_cap = actions.unsqueeze(-1).to(device)
-            try:
-                captions_in = torch.cat((captions_in, gen_cap), axis=1)
-            except:
-                captions_in = torch.cat((captions_in, gen_cap.long()), axis=1)
+                log_prob = torch.log(probs[:,0,:].gather(1, actions.view(-1,1).to(device)))
+                reward = GetRewards(features_in, captions_in, reward_network)
 
-            log_probs = torch.log(probs[:,0,:].gather(1, actions.view(-1,1).to(device)))
+                rewards.append(reward)
+                values.append(value)
+                log_probs.append(log_prob)
 
-            rewards = GetRewards(features_in, captions_in, reward_network)
+                del gen_cap, probs, actions, dist
+
+            values = torch.stack(values, axis=1).squeeze().to(device)
+            rewards = torch.stack(rewards, axis=1).squeeze().to(device)
+            log_probs = torch.stack(log_probs, axis=1).squeeze().to(device)
 
             advantage = values - rewards
             actorLoss = (-log_probs * advantage).mean()
@@ -345,7 +362,6 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, s
             a2c_train_writer.add_scalar('A2C Network-episodic-mean-rewards', rewards.mean(), minibatch_number)
             a2c_train_writer.add_scalar('A2C Network-episodic-mean-advantage', advantage.mean().item(), minibatch_number)
 
-            del gen_cap, probs
             # a2c_network.value_network.valrnn.hidden_cell = repackage_hidden(a2c_network.value_network.valrnn.hidden_cell)
             reward_network.rewrnn.init_hidden()
             a2c_network.value_network.valrnn.init_hidden()
@@ -361,10 +377,10 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
 
     print_green(f'[Training] Training Advantage Actor-Critic Network')
     print_green(f'[Training] mode set to curriculum training using levels: {curriculum}')
-    best_loss = float('inf')
 
     for level in curriculum:
         print_green(f'[Training] Training curriculum level: {level}')
+        best_loss = float('inf')
 
         for epoch in range(epochs):
 
