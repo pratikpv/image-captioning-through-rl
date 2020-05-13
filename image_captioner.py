@@ -41,9 +41,12 @@ def setup(args):
 
     warnings.filterwarnings("ignore", category=UserWarning)
 
-    a2c_file = get_filename(A2C_NETWORK_WEIGHTS_FILE, args.curriculum)
-    results_file = get_filename(RESULTS_FILE, args.curriculum)
-    generated_captions_file = get_filename(GENERATED_CAPTIONS_FILE, args.curriculum)
+    reward_file = get_filename(REWARD_NETWORK_WEIGHTS_FILE, args.bidirectional, None)
+    policy_file = get_filename(POLICY_NETWORK_WEIGHTS_FILE, args.bidirectional, None)
+    value_file = get_filename(VALUE_NETWORK_WEIGHTS_FILE, args.bidirectional, None)
+    a2c_file = get_filename(A2C_NETWORK_WEIGHTS_FILE, args.bidirectional, args.curriculum)
+    results_file = get_filename(RESULTS_FILE, args.bidirectional, args.curriculum)
+    generated_captions_file = get_filename(GENERATED_CAPTIONS_FILE, args.bidirectional, args.curriculum)
 
     save_paths = {
         "model_path": os.path.join(LOG_DIR, a2c_file),
@@ -60,9 +63,10 @@ def setup(args):
 
     MODEL_DIRECTORY = args.pretrained_path
     network_paths = {
-        "reward_network": os.path.join(MODEL_DIRECTORY, REWARD_NETWORK_WEIGHTS_FILE),
-        "policy_network": os.path.join(MODEL_DIRECTORY, POLICY_NETWORK_WEIGHTS_FILE),
-        "value_network": os.path.join(MODEL_DIRECTORY, VALUE_NETWORK_WEIGHTS_FILE),
+        "a2c_network": os.path.join(MODEL_DIRECTORY, a2c_file),
+        "reward_network": os.path.join(MODEL_DIRECTORY, reward_file),
+        "policy_network": os.path.join(MODEL_DIRECTORY, policy_file),
+        "value_network": os.path.join(MODEL_DIRECTORY, value_file),
     }
 
     return save_paths, image_caption_data, network_paths
@@ -90,7 +94,7 @@ def main(args):
 
     if os.path.isfile(args.test_model) and "a2cNetwork" in os.path.split(args.test_model)[1]:
         print_green(f'[Info] Loading A2C Network')
-        a2c_network = load_a2c_models(args.test_model, data, network_paths)
+        a2c_network = load_a2c_models(args.test_model, data, network_paths, args.bidirectional)
         print_green(f'[Info] A2C Network loaded')
     else:
         if args.curriculum:
@@ -102,7 +106,7 @@ def main(args):
         a2c_network = train_a2c_network(train_data=data, \
                         save_paths=save_paths, network_paths=network_paths, \
                             plot_dir=LOG_DIR, epochs=args.epochs, batch_size=args.batch_size, \
-                                    retrain_all=args.retrain, curriculum=curriculum)
+                                    bidirectional=args.bidirectional, retrain_all=args.retrain, curriculum=curriculum)
         print_green(f'[Info] A2C Network trained')
 
     print_green(f'[Info] Testing A2C Network')
@@ -134,7 +138,9 @@ if __name__ == "__main__":
 
     parser.add_argument('--retrain', action='store_true', help='Whether to retrain value, policy and reward networks', default=False)
     parser.add_argument('--postprocess', action='store_true', help='Post process data to download images from the validation cycle', default=False)
+    
     parser.add_argument('--curriculum', action='store_true', help='Use curriculum training approach',default=False)
+    parser.add_argument('--bidirectional', action='store_true', help='Use bidirectional recurrent neural networks',default=False)
 
     parser.add_argument('--test_model', type=str, help='Test a pretrained advantage actor critic model', default="")
     parser.add_argument('--pretrained_path', type=str, help='Location of pretrained model files', default="models_pretrained")

@@ -214,13 +214,27 @@ def post_process_data(image_caption_data, top_item_count=5):
     best_score_file.close()
 
 
-def load_a2c_models(model_path, train_data, network_paths):
+def save_a2c_model(model, save_paths):
+    from torch import save
+
+    if isinstance(save_paths, list):
+        for path in save_paths:
+            save(model.state_dict(), path)
+    elif isinstance(save_paths, str):
+        save(model.state_dict(), save_paths)
+
+
+def load_a2c_models(model_path, train_data, network_paths, bidirectional):
     
-    policy_network = PolicyNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"]).to(device)
+    policy_network = PolicyNetwork(train_data["word_to_idx"], \
+                        pretrained_embeddings=train_data["embeddings"], \
+                            bidirectional=bidirectional).to(device)
     policy_network.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
     policy_network.train(mode=False)
 
-    value_network = ValueNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"]).to(device)
+    value_network = ValueNetwork(train_data["word_to_idx"], \
+                        pretrained_embeddings=train_data["embeddings"], \
+                            bidirectional=bidirectional).to(device)
     value_network.load_state_dict(torch.load(network_paths["value_network"], map_location=device))
     value_network.train(mode=False)
 
@@ -229,11 +243,14 @@ def load_a2c_models(model_path, train_data, network_paths):
 
     return a2c_network
 
-def get_filename(base_name, curriculum=False):
+def get_filename(base_name, bidirectional, curriculum=None):
 
     name, ext = os.path.splitext(base_name)
-    if curriculum:
-        name += "_curriculum"
+    if bidirectional:
+        name += "_bidirectional"
+    if curriculum is not None:
+        if curriculum:
+            name += "_curriculum"
     name += ext
 
     return name
