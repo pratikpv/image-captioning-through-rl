@@ -13,7 +13,7 @@ import gensim
 import gensim.downloader as api
 from gensim.models import KeyedVectors
 from gensim.utils import simple_preprocess
-
+from tqdm import tqdm
 from models import *
 from metrics import *
 
@@ -182,7 +182,7 @@ def post_process_data(image_caption_data, top_item_count=5):
     image_url_lines = image_url_file.readlines()
     data_len = len(real_captions_lines)
 
-    for i in range(data_len):
+    for i in tqdm(range(data_len), desc='Comparing scores'):
         s = get_singleton_score(real_captions_lines[i], generated_captions_lines[i])
         avg = 0.0
         for k in s.keys():
@@ -196,7 +196,7 @@ def post_process_data(image_caption_data, top_item_count=5):
     if not os.path.isdir(best_score_images_path):
         os.mkdir(best_score_images_path)
 
-    for i in top_items_index:
+    for i in tqdm(top_items_index, desc='Downloading images'):
         buff = 'item_index[%d] score:[%f] real_cap:[%s] generated_cap:[%s] \n' % (
             i + 1, score_list[i], real_captions_lines[i].strip(), generated_captions_lines[i].strip())
         best_score_file.write(buff)
