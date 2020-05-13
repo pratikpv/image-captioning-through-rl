@@ -311,7 +311,16 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, s
 
             actions = []
             for i in range(dist.shape[0]):
-                actions.append(np.random.choice(probs.shape[-1], p=dist[i]))
+                # get MAX_SEQ_LEN many samples
+                sample_choices = np.random.choice(probs.shape[-1], size=MAX_SEQ_LEN, p=dist[i])
+                # trim sample_choices until 2 is found. 2 is the <end>
+                try:
+                    index_of_end = np.nonzero([sample_choices == 2])[1][0] + 1
+                except:
+                    # if <end> is not there use max seq.
+                    index_of_end = MAX_SEQ_LEN
+                sample_choices = sample_choices[:index_of_end][0]
+                actions.append(sample_choices)
             actions = torch.from_numpy(np.array(actions))
 
             gen_cap = actions.unsqueeze(-1).to(device)
