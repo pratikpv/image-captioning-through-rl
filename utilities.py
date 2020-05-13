@@ -333,7 +333,7 @@ def load_word_embeddings(embedding_type, target_data, train_corpus=None):
     model.build_vocab(train_corpus)
 
     print_green(f'[Info] Training Word Embeddings')
-    model.train(train_corpus, total_examples=model.corpus_count, epochs=10, report_delay=5)
+    model.train(train_corpus, total_examples=model.corpus_count, epochs=30, report_delay=5)
     print_green(f'[Info] Finished Training Word Embeddings')
 
     vectors = get_vectors_by_by_vocab(model.wv, target_data["word_to_idx"])
