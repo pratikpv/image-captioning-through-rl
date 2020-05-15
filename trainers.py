@@ -75,12 +75,12 @@ def train_value_network(train_data, network_paths, plot_dir, bidirectional, epoc
     value_writer = SummaryWriter(log_dir = os.path.join(plot_dir, 'runs'))
 
     reward_network = RewardNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"], bidirectional=bidirectional).to(device)
-    reward_network.load_state_dict(torch.load(network_paths["reward_network"], map_location=device))
+    reward_network.load_state_dict(torch.load(network_paths["reward_network"], map_location=device), strict=False)
     reward_network.train(False)
     reward_network.requires_grad_(False)
 
     policy_network = PolicyNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"], bidirectional=bidirectional).to(device)
-    policy_network.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
+    policy_network.load_state_dict(torch.load(network_paths["policy_network"], map_location=device), strict=False)
     policy_network.train(False)
     policy_network.requires_grad_(False)
 
@@ -233,7 +233,7 @@ def train_a2c_network(train_data, save_paths, network_paths, plot_dir, bidirecti
     else:
         try:
             reward_network = RewardNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"], bidirectional=bidirectional).to(device)
-            reward_network.load_state_dict(torch.load(network_paths["reward_network"], map_location=device))
+            reward_network.load_state_dict(torch.load(network_paths["reward_network"], map_location=device), strict=False)
             print(f'[Training] loaded reward network')
         except FileNotFoundError:
             print(f'[Training] reward network not found')
@@ -241,7 +241,7 @@ def train_a2c_network(train_data, save_paths, network_paths, plot_dir, bidirecti
             reward_network = train_reward_network(train_data, network_paths, plot_dir, bidirectional, batch_size=batch_size)
         try:
             policy_network = PolicyNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"], bidirectional=bidirectional).to(device)
-            policy_network.load_state_dict(torch.load(network_paths["policy_network"], map_location=device))
+            policy_network.load_state_dict(torch.load(network_paths["policy_network"], map_location=device), strict=False)
             print(f'[Training] loaded policy network')
         except FileNotFoundError:
             del policy_network
@@ -249,7 +249,7 @@ def train_a2c_network(train_data, save_paths, network_paths, plot_dir, bidirecti
             policy_network = train_policy_network(train_data, network_paths, plot_dir, bidirectional, batch_size=batch_size)
         try:
             value_network = ValueNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"], bidirectional=bidirectional).to(device)
-            value_network.load_state_dict(torch.load(network_paths["value_network"], map_location=device))
+            value_network.load_state_dict(torch.load(network_paths["value_network"], map_location=device), strict=False)
             print(f'[Training] loaded value network')
         except FileNotFoundError:
             del value_network
