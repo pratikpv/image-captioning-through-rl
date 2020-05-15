@@ -92,7 +92,7 @@ class ValueNetworkRNN(nn.Module):
 
 class ValueNetwork(nn.Module):
 
-    def __init__(self, word_to_idx, pretrained_embeddings, bidirectional=False):
+    def __init__(self, word_to_idx, pretrained_embeddings=None, bidirectional=False):
 
         super(ValueNetwork, self).__init__()
 
