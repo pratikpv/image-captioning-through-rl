@@ -133,7 +133,7 @@ def train_value_network(train_data, network_paths, plot_dir, bidirectional, epoc
     return value_network
 
 
-def train_policy_network(train_data, network_paths, plot_dir, bidirectional, epochs=50, batch_size=512):
+def train_policy_network(train_data, network_paths, plot_dir, bidirectional, epochs=100, batch_size=512):
 
     policy_network = PolicyNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"], bidirectional=bidirectional).to(device)
     criterion = nn.CrossEntropyLoss().to(device)
