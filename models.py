@@ -98,9 +98,11 @@ class ValueNetwork(nn.Module):
 
         self.bidirectional = bidirectional
         self.valrnn = ValueNetworkRNN(word_to_idx, pretrained_embeddings=pretrained_embeddings, bidirectional=self.bidirectional)
-        self.rnn_linear = nn.Linear(1024, 512)
         self.linear1 = nn.Linear(1024, 512)
         self.linear2 = nn.Linear(512, 1)
+
+        if self.bidirectional:
+            self.rnn_linear = nn.Linear(1024, 512)
 
     def forward(self, features, captions):
 
