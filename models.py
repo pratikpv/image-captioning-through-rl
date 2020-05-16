@@ -33,19 +33,21 @@ def repackage_hidden(h):
 class PolicyNetwork(nn.Module):
     """
     This is the Policy Network class. Works as an actor of the system.
+
+    Models sequential data (image captions) by initializing LSTM hidden
+    states with embedded image features (from a pretrained VGG16 model)
     """
 
-    def __init__(self, word_to_idx, input_dim=512, wordvec_dim=512, hidden_dim=512, dtype=np.float32,
+    def __init__(self, word_to_idx, input_dim=512, wordvec_dim=512, hidden_dim=512,
                  pretrained_embeddings=None, bidirectional=False):
         """
 
-        @param word_to_idx: 
-        @param input_dim: 
-        @param wordvec_dim: 
-        @param hidden_dim: 
-        @param dtype: 
-        @param pretrained_embeddings: 
-        @param bidirectional: 
+        @param word_to_idx: dict of word to index
+        @param input_dim: dimensions of input features
+        @param wordvec_dim: dimensions of embeddings
+        @param hidden_dim: dimensions of hidden layers
+        @param pretrained_embeddings: (optional) pretrained word vectors to use
+        @param bidirectional: (optional) flag - whether to use bidirectional recurrent networks
         """
         super(PolicyNetwork, self).__init__()
 
@@ -85,20 +87,21 @@ class PolicyNetwork(nn.Module):
 
 class ValueNetworkRNN(nn.Module):
     """
-    This is RNN submodule of the main Value Network. It gets wrapped by the Value Network
+    This is RNN submodule of the main Value Network. It gets wrapped by the Value Network.
+
+    Embeds a sequence (caption) into a vector space, then models it via an LSTM layer
     """
 
-    def __init__(self, word_to_idx, input_dim=512, wordvec_dim=512, hidden_dim=512, dtype=np.float32,
+    def __init__(self, word_to_idx, input_dim=512, wordvec_dim=512, hidden_dim=512,
                  pretrained_embeddings=None, bidirectional=False):
         """
 
         @param word_to_idx: dict of word to index
-        @param input_dim: dimentions of input features
-        @param wordvec_dim: dimentions of embeddings
-        @param hidden_dim: dimentions of hiddne layers
-        @param dtype: data type
-        @param pretrained_embeddings: Whether to use pretrained embeddings
-        @param bidirectional: Whether to use bi-LSTM
+        @param input_dim: dimensions of input features
+        @param wordvec_dim: dimensions of embeddings
+        @param hidden_dim: dimensions of hidden layers
+        @param pretrained_embeddings: (optional) pretrained word vectors to use
+        @param bidirectional: (optional) flag - whether to use bidirectional recurrent networks
         """
         super(ValueNetworkRNN, self).__init__()
 
@@ -135,15 +138,20 @@ class ValueNetworkRNN(nn.Module):
 
 class ValueNetwork(nn.Module):
     """
-    This is the main Value Network class. it acts as a Critic of the system
+    This is the main Value Network class. it acts as a Critic of the system.
+
+    Combines (via concatenation) the embedded image features (from pretrained VGG16)
+    and the image caption (sequential representation via the ValueNetworkRNN embedding)
+    and puts the joint features through feed-forward layers (i.e. multi-level perceptron)
+    to get a scalar value.
     """
 
     def __init__(self, word_to_idx, pretrained_embeddings=None, bidirectional=False):
         """
 
         @param word_to_idx: dict of word to index
-        @param pretrained_embeddings: Whether to use pretrained embeddings
-        @param bidirectional: Whether to use bi-LSTM
+        @param pretrained_embeddings: (optional) pretrained word vectors to use
+        @param bidirectional: (optional) flag - whether to use bidirectional recurrent networks
         """
         super(ValueNetwork, self).__init__()
 
@@ -175,20 +183,20 @@ class ValueNetwork(nn.Module):
 
 class RewardNetworkRNN(nn.Module):
     """
-    This is RNN submodule of the main Reward Network. It gets wrapped by the Reward Network
+    This is RNN submodule of the main Reward Network. It gets wrapped by the Reward Network.
+    Embeds sequential data (captions) and models it through a Gated Recurrent Unit layer.
     """
 
-    def __init__(self, word_to_idx, input_dim=512, wordvec_dim=512, hidden_dim=512, dtype=np.float32,
+    def __init__(self, word_to_idx, input_dim=512, wordvec_dim=512, hidden_dim=512,
                  pretrained_embeddings=None, bidirectional=False):
         """
 
         @param word_to_idx: dict of word to index
-        @param input_dim: dimentions of input features
-        @param wordvec_dim: dimentions of embeddings
-        @param hidden_dim: dimentions of hiddne layers
-        @param dtype: data type
-        @param pretrained_embeddings: Whether to use pretrained embeddings
-        @param bidirectional: Whether to use bi-LSTM
+        @param input_dim: dimensions of input features
+        @param wordvec_dim: dimensions of embeddings
+        @param hidden_dim: dimensions of hidden layers
+        @param pretrained_embeddings: (optional) pretrained word vectors to use
+        @param bidirectional: (optional) flag - whether to use bidirectional recurrent networks
         """
         super(RewardNetworkRNN, self).__init__()
 
@@ -223,16 +231,17 @@ class RewardNetworkRNN(nn.Module):
 
 class RewardNetwork(nn.Module):
     """
-    This is the main Reward Network. it uses visual-semantic embeddings to predict the rewards
-    based on given image features and the captions
+    This is the main Reward Network. 
+    Projects semantic data (via GRU modelling representations) and visual data (via pretrained VGG16 features)
+    onto a shared embedding vector space.
     """
 
     def __init__(self, word_to_idx, pretrained_embeddings=None, bidirectional=False):
         """
 
         @param word_to_idx: dict of word to index
-        @param pretrained_embeddings: Whether to use pretrained embeddings
-        @param bidirectional: Whether to use bi-LSTM
+        @param pretrained_embeddings: (optional) pretrained word vectors to use
+        @param bidirectional: (optional) flag - whether to use bidirectional recurrent networks
         """
         super(RewardNetwork, self).__init__()
         self.bidirectional = bidirectional
@@ -256,14 +265,15 @@ class RewardNetwork(nn.Module):
 
 class AdvantageActorCriticNetwork(nn.Module):
     """
-    The core A2C class. it wraps the value and policy network and works as an Agent
+    The core Advantage Actor Critic class. It wraps the value and policy networks and works as an Agent
+    for image caption predictions.
     """
 
     def __init__(self, value_network, policy_network):
         """
 
-        @param value_network: The value net to wrap
-        @param policy_network: The policy net to wrap
+        @param value_network: The value network to that acts as the critic for training
+        @param policy_network: The policy network that acts as the actor for training
         """
         super(AdvantageActorCriticNetwork, self).__init__()
 

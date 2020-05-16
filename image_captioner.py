@@ -111,7 +111,7 @@ def main(args):
         print_green(f'[Info] Loading Corpus')
         train_corpus = get_preprocessed_corpus(BASE_DIR)
         print_green(f'[Info] Corpus Loaded With {len(train_corpus)} Lines')
-        data["embeddings"] = load_word_embeddings(args.train_word2vec, data, train_corpus)
+        data["embeddings"] = train_word_embeddings(args.train_word2vec, data, train_corpus)
         print_green(f'[Info] Done Loading Word Embeddings')
     else:
         data["embeddings"] = None

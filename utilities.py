@@ -302,7 +302,7 @@ def load_a2c_models(model_path, train_data, network_paths, bidirectional):
     @param model_path: path of the weigth files
     @param train_data: used to create objects while pre-loading nets
     @param network_paths: dict of pretrained models
-    @param bidirectional: whether to use bi-LSTM
+    @param bidirectional: whether to use bidirectional recurrent networks
     @return:
     """
     policy_network = PolicyNetwork(train_data["word_to_idx"], \
@@ -361,8 +361,8 @@ def calculate_a2cNetwork_score(image_caption_data, save_paths):
 def get_preprocessed_corpus(base_dir):
     """
 
-    @param base_dir:
-    @return:
+    @param base_dir: Location of MS-COCO data
+    @return: A preprocessed corpus of all captions in the dataset.
     """
     data = load_data(base_dir=base_dir, max_train=None, print_keys=False)
     idx_to_word = data["idx_to_word"]
@@ -375,8 +375,8 @@ def get_preprocessed_corpus(base_dir):
 def get_embeddings(emb_type):
     """
 
-    @param emb_type:
-    @return:
+    @param emb_type: (Standard) pretrained embedding weights to load.
+    @return: Standard pretrained embedding model specified
     """
     embeddings = None
     emb_name = ""
@@ -400,8 +400,8 @@ def get_embeddings(emb_type):
 def get_embedding_model(path):
     """
 
-    @param path:
-    @return:
+    @param path: Either the word2vec model file itself, or the location from which to load the model.
+    @return: Keyed Vectors, i.e. word-indexed vectors.
     """
     if isinstance(path, gensim.models.keyedvectors.BaseKeyedVectors):
         model = path
@@ -418,9 +418,9 @@ def get_embedding_model(path):
 def get_vectors_by_by_vocab(model, word_to_idx):
     """
 
-    @param model:
-    @param word_to_idx:
-    @return:
+    @param model: Word embedding model to extract vectors from
+    @param word_to_idx: Vocabulary indices to use for aligning word vectors
+    @return: Word Embeddings from the specified model aligned with the given vocabulary
     """
     idx_to_word = {i: w for w, i in word_to_idx.items()}
     new_vectors = np.empty((len(idx_to_word), model.vectors.shape[1]), dtype=np.float32)
@@ -441,13 +441,13 @@ def get_vectors_by_by_vocab(model, word_to_idx):
     return new_vectors
 
 
-def load_word_embeddings(embedding_type, target_data, train_corpus=None):
+def train_word_embeddings(embedding_type, target_data, train_corpus):
     """
 
-    @param embedding_type:
-    @param target_data:
-    @param train_corpus:
-    @return:
+    @param embedding_type: Algorithm to use for training word embeddings
+    @param target_data: Metadata to use (notably the word indices to use)
+    @param train_corpus: Corpus of (preprocessed) caption data for training
+    @return: Trained word vectors aligned with respect to the given caption
     """
     if embedding_type == "none":
         return None

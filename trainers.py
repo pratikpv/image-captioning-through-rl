@@ -23,10 +23,19 @@ from torch.utils.tensorboard import SummaryWriter
 def VisualSemanticEmbeddingLoss(visuals, semantics):
     """
 
-    @param visuals:
-    @param semantics:
-    @return:
+    @param visuals: embedded features of the image
+    @param semantics: embedded features of the caption
+    @return: numerical loss based on similarity of embedded features
+
+    Computes a joint loss by on visual data (CNN outputs) and semantic data (final state of RNN) by:
+    1) First, fixing the image and:
+        (i)  maximizing the similarity of the caption representation to the image
+        (ii) minimizing the similarity of representations of negative captions to the image
+    2) And then, fixing the caption and:
+        (i)  maximizing the similarity of the image representation to the caption
+        (ii) minimizing the similarity of representations of negative images to the caption
     """
+
     beta = 0.2
     N, D = visuals.shape
 
@@ -48,10 +57,10 @@ def VisualSemanticEmbeddingLoss(visuals, semantics):
 def GenerateCaptionsGreedy(features, captions, policy_network):
     """
 
-    @param features:
-    @param captions:
-    @param policy_network:
-    @return:
+    @param features: image features
+    @param captions: image caption
+    @param policy_network: network that decides on the next word
+    @return: potential caption based on short-term greedy decision making
     """
     features = torch.tensor(features, device=device).float().unsqueeze(0)
     gen_caps = torch.tensor(captions[:, 0:1], device=device).long()
@@ -65,13 +74,13 @@ def GenerateCaptionsWithActorCriticLookAhead(features, captions, policy_network,
                                              most_likely=False):
     """
 
-    @param features:
-    @param captions:
-    @param policy_network:
-    @param value_network:
-    @param beamSize:
-    @param most_likely:
-    @return:
+    @param features: image features
+    @param captions: image caption
+    @param policy_network: network that decides on the next word
+    @param value_network: network that provides feedback on the global value (expected reward) for the next word
+    @param beamSize: number of lookahead positions to consider when scoring potential captions
+    @param most_likely: flag - whether to return the single most likely caption
+    @return: list of potential captions
     """
     features = torch.tensor(features, device=device).float().unsqueeze(0)
     gen_caps = torch.tensor(captions[:, 0:1], device=device).long()
@@ -99,7 +108,10 @@ def GenerateCaptionsWithActorCriticLookAhead(features, captions, policy_network,
 def GetRewards(features, captions, reward_network):
     """
 
-    @rtype: object
+    @param features: image features
+    @param captions: image caption
+    @param reward_network: network that projects captions and images onto a common vector space
+    @return: similarity between embedded projections of captions and images (cosine similarity)
     """
     visEmbeds, semEmbeds = reward_network(features, captions)
     visEmbeds = F.normalize(visEmbeds, p=2, dim=1)
@@ -108,18 +120,21 @@ def GetRewards(features, captions, reward_network):
     rewards = torch.sum(visEmbeds * semEmbeds, axis=1).unsqueeze(1)
     return rewards
 
+
 # Used https://github.com/Pranshu258/Deep_Image_Captioning as some of the code reference
 def train_value_network(train_data, network_paths, plot_dir, bidirectional, epochs=50, batch_size=512):
     """
-    Function to train value net
+    Function to train value net. Trained on Mean-Squared Error Loss.
+
     @param train_data: the training data
     @param network_paths: path to store net
     @param plot_dir: path to store tensorboard graphs
-    @param bidirectional: whether to use bi-LSTM
+    @param bidirectional: whether to use bidirectional recurrent networks
     @param epochs: num of epochs
     @param batch_size: batch size of data per epoch
-    @return: the trained net
+    @return: the trained value network
     """
+
     value_writer = SummaryWriter(log_dir=os.path.join(plot_dir, 'runs'))
 
     reward_network = RewardNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"],
@@ -186,15 +201,17 @@ def train_value_network(train_data, network_paths, plot_dir, bidirectional, epoc
 
 def train_policy_network(train_data, network_paths, plot_dir, bidirectional, epochs=100, batch_size=512):
     """
-    Function to train policy net
+    Function to train policy net. Trained on Cross Entropy Loss.
+
     @param train_data: the training data
     @param network_paths: path to store net
     @param plot_dir: path to store tensorboard graphs
-    @param bidirectional: whether to use bi-LSTM
+    @param bidirectional: whether to use bidirectional recurrent networks
     @param epochs: num of epochs
     @param batch_size: batch size of data per epoch
-    @return: the trained net
+    @return: the trained policy network
     """
+
     policy_network = PolicyNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"],
                                    bidirectional=bidirectional).to(device)
     criterion = nn.CrossEntropyLoss().to(device)
@@ -242,14 +259,15 @@ def train_policy_network(train_data, network_paths, plot_dir, bidirectional, epo
 
 def train_reward_network(train_data, network_paths, plot_dir, bidirectional, epochs=50, batch_size=512):
     """
-    Function to train reward net
+    Function to train reward net. Trained on Visual Semantic Embedding Loss.
+
     @param train_data: the training data
     @param network_paths: path to store net
     @param plot_dir: path to store tensorboard graphs
-    @param bidirectional: whether to use bi-LSTM
+    @param bidirectional: whether to use bidirectional recurrent networks
     @param epochs: num of epochs
     @param batch_size: batch size of data per epoch
-    @return: the trained net
+    @return: the trained reward network
     """
     reward_writer = SummaryWriter(log_dir=os.path.join(plot_dir, 'runs'))
     reward_network = RewardNetwork(train_data["word_to_idx"], pretrained_embeddings=train_data["embeddings"],
@@ -294,18 +312,18 @@ def train_reward_network(train_data, network_paths, plot_dir, bidirectional, epo
 def train_a2c_network(train_data, save_paths, network_paths, plot_dir, bidirectional, epochs, batch_size,
                       retrain_all=False, curriculum=None):
     """
-    wrapper function to call actual training functions based on input configurations
+    Wrapper function to call actual training functions based on input configurations
 
     @param train_data: the dataset for training
     @param save_paths: path to store results
     @param network_paths:  path to load/store nets
     @param plot_dir:  path to store tensorboard graphs
-    @param bidirectional: whether to use bi-LSTM
+    @param bidirectional: whether to use bidirectional recurrent networks
     @param epochs: the number of epochs for data passes
     @param batch_size:  batch size for each epoch
     @param retrain_all: whether to retrain all nets or laod pretrained nets
     @param curriculum: curriculum levels
-    @return: the trained net
+    @return: the trained actor-critic network
     """
     model_save_path = save_paths["model_path"]
     results_save_path = save_paths["results_path"]
@@ -383,7 +401,8 @@ def train_a2c_network(train_data, save_paths, network_paths, plot_dir, bidirecti
 
 def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, save_paths, batch_size, epochs):
     """
-    The function to train the a2c model.
+    Train the a2c model. Trained on Advantage-Weighted Log Probability Loss.
+
     @param train_data: the dataset for training
     @param a2c_network: the a2c network
     @param reward_network: the reward net for predicting rewards
@@ -392,7 +411,7 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, s
     @param save_paths: path to save trained nets
     @param batch_size: batch size for each epoch
     @param epochs: the number of epochs for data passes
-    @return: the trained a2c net
+    @return: the trained actor-critic network
     """
     a2c_train_writer = SummaryWriter(log_dir=os.path.join(plot_dir, 'runs'))
 
@@ -484,7 +503,11 @@ def a2c_training(train_data, a2c_network, reward_network, optimizer, plot_dir, s
 def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, plot_dir, save_paths, batch_size,
                             epochs, curriculum):
     """
-    The function to train the model based on curriculum
+    Train the model based on Curriculum Learning. 
+    Start out training on the last few words of each caption, and increase the
+    size of the caption the model should predict until the full caption is trained using 
+    Reinforcement Learning.
+    Trained on Advantage-Weighted Log Probability Loss.
 
     @param train_data: the dataset for training
     @param a2c_network: the a2c network
@@ -495,7 +518,7 @@ def a2c_curriculum_training(train_data, a2c_network, reward_network, optimizer, 
     @param batch_size: batch size for each epoch
     @param epochs: the number of epochs for data passes
     @param curriculum: curriculum levels
-    @return: the trained a2c net
+    @return: the trained actor-critic network
     """
     a2c_train_curriculum_writer = SummaryWriter(log_dir=os.path.join(plot_dir, 'runs'))
 
