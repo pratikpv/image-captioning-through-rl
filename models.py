@@ -64,7 +64,7 @@ class PolicyNetwork(nn.Module):
         else:
             self.caption_embedding = nn.Embedding(vocab_size, wordvec_dim)
 
-        self.cnn2linear = nn.Linear(input_dim, hidden_dim)
+        self.cnn2linear = nn.Linear(input_dim, hidden_dim * num_dim)
         self.lstm = nn.LSTM(wordvec_dim, hidden_dim, batch_first=True, bidirectional=self.bidirectional)
         self.linear2vocab = nn.Linear(hidden_dim * num_dim, vocab_size)
 
@@ -72,10 +72,9 @@ class PolicyNetwork(nn.Module):
 
         input_captions = self.caption_embedding(captions)
 
+        hidden_init = self.cnn2linear(features)
         if self.bidirectional:
-            hidden_init = torch.cat([self.cnn2linear(features), self.cnn2linear(features)], dim=0)
-        else:
-            hidden_init = self.cnn2linear(features)
+            hidden_init = torch.cat(torch.split(hidden_init, int(hidden_init.shape[-1]/2), dim=-1), dim=0)
         cell_init = torch.zeros_like(hidden_init)
 
         output, _ = self.lstm(input_captions, (hidden_init, cell_init))
