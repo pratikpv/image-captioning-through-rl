@@ -1,3 +1,14 @@
+###################################################
+# Image Captioning with Deep Reinforcement Learning
+# SJSU CMPE-297-03 | Spring 2020
+#
+#
+# Team:
+# Pratikkumar Prajapati
+# Aashay Mokadam
+# Karthik Munipalle
+###################################################
+
 import argparse
 from datetime import datetime
 from trainers import *
@@ -5,27 +16,34 @@ import warnings
 
 # defaults and params
 device = "cuda"
-BASE_DIR = os.path.join('datasets', 'coco_captioning')
-REAL_CAPTIONS_FILE = 'real_captions.txt'
-GENERATED_CAPTIONS_FILE = 'generated_captions.txt'
-IMAGE_URL_FILENAME = 'image_url.txt'
-LOG_DIR = ""
+BASE_DIR = os.path.join('datasets', 'coco_captioning')  # path of the dataset
+REAL_CAPTIONS_FILE = 'real_captions.txt'  # actual captions from the dataset stored in this file, for scoring
+GENERATED_CAPTIONS_FILE = 'generated_captions.txt'  # generated captions are stored in this file, for scoring
+IMAGE_URL_FILENAME = 'image_url.txt'  # actual image urls from the dataset stored in this file, for viewing results
+LOG_DIR = ""  # all logs are save in this LOG_DIR, a value gets assigned based on execution date-time stamp
 
+# network weight files
 A2C_NETWORK_WEIGHTS_FILE = 'a2cNetwork.pt'
 REWARD_NETWORK_WEIGHTS_FILE = 'rewardNetwork.pt'
 POLICY_NETWORK_WEIGHTS_FILE = 'policyNetwork.pt'
 VALUE_NETWORK_WEIGHTS_FILE = 'valueNetwork.pt'
-RESULTS_FILE = 'results.txt'
 
-BEST_SCORE_FILENAME = 'best_scores.txt'
-BEST_SCORE_IMAGES_PATH = 'best_scores_images'
+RESULTS_FILE = 'results.txt'  # various scores are saved in this file
+BEST_SCORE_FILENAME = 'best_scores.txt'  # post-processing stage saves best results in this file
+BEST_SCORE_IMAGES_PATH = 'best_scores_images'  # # post-processing stage download images of best results here
 # CURRICILUM_LEVELS = [2, 4, 6, 8, 10, 12, 14, 16]
 CURRICILUM_LEVELS = [3, 6, 9, 12, 15]
 
-def setup(args):
 
+def setup(args):
+    """
+    Create various configurations based on args.
+    @param args: command line arguments
+    @return: various dictionary objects with paths and configuration data
+    """
     global LOG_DIR, device
 
+    # execute on GPU if available
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if torch.cuda.is_available():
         print_green(f"[Info] Working on: {device}, device_name: {torch.cuda.get_device_name(0)} ")
@@ -71,8 +89,12 @@ def setup(args):
 
     return save_paths, image_caption_data, network_paths
 
-def main(args):
 
+def main(args):
+    """
+    The main function to call various modules (train, test, post-process etc) based on args.
+    @param args: command line arguments
+    """
     save_paths, image_caption_data, network_paths = setup(args)
 
     print_green(f'[Info] Saving Logs in dir: {LOG_DIR}')
@@ -106,14 +128,15 @@ def main(args):
 
         print_green(f'[Info] Training A2C Network')
         a2c_network = train_a2c_network(train_data=data, \
-                        save_paths=save_paths, network_paths=network_paths, \
-                            plot_dir=LOG_DIR, epochs=args.epochs, batch_size=args.batch_size, \
-                                    bidirectional=args.bidirectional, retrain_all=args.retrain, curriculum=curriculum)
+                                        save_paths=save_paths, network_paths=network_paths, \
+                                        plot_dir=LOG_DIR, epochs=args.epochs, batch_size=args.batch_size, \
+                                        bidirectional=args.bidirectional, retrain_all=args.retrain,
+                                        curriculum=curriculum)
         print_green(f'[Info] A2C Network trained')
 
     print_green(f'[Info] Testing A2C Network')
     test_a2c_network(a2c_network, test_data=data, \
-                        image_caption_data=image_caption_data, data_size=args.test_size)
+                     image_caption_data=image_caption_data, data_size=args.test_size)
     print_green(f'[Info] A2C Network Tested')
 
     print_green(f'[Info] A2C Network score - start')
@@ -129,27 +152,34 @@ def main(args):
 
 
 if __name__ == "__main__":
-
+    # collect command line arguments for execution
     parser = argparse.ArgumentParser(description='Generate Image Captions through Deep Reinforcement Learning')
 
-    parser.add_argument('--training_size', type=int, help='Size of the training set to use (set 0 for the full set)', default=0)
+    parser.add_argument('--training_size', type=int, help='Size of the training set to use (set 0 for the full set)',
+                        default=0)
     parser.add_argument('--test_size', type=int, help='Size of the test set to use', default=40504)
 
     parser.add_argument('--epochs', type=int, help='Number of Epochs to use for Training the A2C Network', default=100)
-    parser.add_argument('--batch_size', type=int, help='Number of Episodes (Batch Size) to use for Training the A2C Network', default=512)
+    parser.add_argument('--batch_size', type=int,
+                        help='Number of Episodes (Batch Size) to use for Training the A2C Network', default=512)
 
-    parser.add_argument('--retrain', action='store_true', help='Whether to retrain value, policy and reward networks', default=False)
-    parser.add_argument('--postprocess', action='store_true', help='Post process data to download images from the validation cycle', default=False)
-    
-    parser.add_argument('--curriculum', action='store_true', help='Use curriculum training approach',default=False)
-    parser.add_argument('--bidirectional', action='store_true', help='Use bidirectional recurrent neural networks',default=False)
+    parser.add_argument('--retrain', action='store_true', help='Whether to retrain value, policy and reward networks',
+                        default=False)
+    parser.add_argument('--postprocess', action='store_true',
+                        help='Post process data to download images from the validation cycle', default=False)
+
+    parser.add_argument('--curriculum', action='store_true', help='Use curriculum training approach', default=False)
+    parser.add_argument('--bidirectional', action='store_true', help='Use bidirectional recurrent neural networks',
+                        default=False)
 
     parser.add_argument('--test_model', type=str, help='Test a pretrained advantage actor critic model', default="")
-    parser.add_argument('--pretrained_path', type=str, help='Location of pretrained model files', default="models_pretrained")
+    parser.add_argument('--pretrained_path', type=str, help='Location of pretrained model files',
+                        default="models_pretrained")
 
     # choices: ["none", "conceptnet", "word2vec", "fasttext", "glove", "path/to/word/embedding/model"]
     parser.add_argument('--pretrained_word2vec', type=str, help='Word Embedding model to use', default="none")
-    parser.add_argument('--train_word2vec', type=str, choices=["none", "word2vec", "fasttext"], help='Whether to train a word embedding model on training data', default="none")
+    parser.add_argument('--train_word2vec', type=str, choices=["none", "word2vec", "fasttext"],
+                        help='Whether to train a word embedding model on training data', default="none")
     args = parser.parse_args()
 
     main(args)

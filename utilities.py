@@ -1,14 +1,21 @@
+###################################################
+# Image Captioning with Deep Reinforcement Learning
+# SJSU CMPE-297-03 | Spring 2020
+#
+#
+# Team:
+# Pratikkumar Prajapati
+# Aashay Mokadam
+# Karthik Munipalle
+###################################################
+
 import h5py
 import json
 import requests
 import gc
-import os
-
 from PIL import Image
 from io import BytesIO
 import urllib.request
-
-import numpy as np
 import gensim
 import gensim.downloader as api
 from gensim.models import KeyedVectors
@@ -16,17 +23,34 @@ from gensim.utils import simple_preprocess
 from tqdm import tqdm
 from models import *
 from metrics import *
-
+from torch import randperm
+from torch import save
 
 def print_green(text):
+    """
+    print text in green color
+    @param text: text to print
+    """
     print('\033[32m', text, '\033[0m', sep='')
 
 
 def print_red(text):
+    """
+    print text in red color
+    @param text: text to print
+    """
     print('\033[31m', text, '\033[0m', sep='')
 
 
 def load_data(base_dir, max_train=None, pca_features=True, print_keys=False):
+    """
+    Load the COCO dataset in memory
+    @param base_dir: dir where the dataset is stored
+    @param max_train: load given size of data, pass None to load full data
+    @param pca_features: whether to load data with PCA applied
+    @param print_keys: whether to print components of the dataset
+    @return: dict:data with dataset loaded
+    """
     data = {}
 
     caption_file = os.path.join(base_dir, 'coco2014_captions.h5')
@@ -90,6 +114,12 @@ def load_data(base_dir, max_train=None, pca_features=True, print_keys=False):
 
 
 def decode_captions(captions, idx_to_word):
+    """
+    Decode the captions from the emebbedings
+    @param captions: input captions to decode
+    @param idx_to_word: dectionary used for decoding
+    @return: decoded captions
+    """
     singleton = False
     if captions.ndim == 1:
         singleton = True
@@ -111,6 +141,13 @@ def decode_captions(captions, idx_to_word):
 
 
 def get_coco_batch(data, batch_size=100, split='train'):
+    """
+    Sample batch_size of data
+    @param data: the main dataset
+    @param batch_size: size of batch to sample
+    @param split: whether to load train or val set
+    @return: tuple of captions, image_features, urls
+    """
     split_total_size = data['%s_captions' % split].shape[0]
     mask = np.random.choice(split_total_size, batch_size)
     captions = data['%s_captions' % split][mask]
@@ -121,13 +158,18 @@ def get_coco_batch(data, batch_size=100, split='train'):
 
 
 def get_coco_minibatches(data, batch_size=100, split='train'):
-
-    from torch import randperm
+    """
+    Sample batch_size of data, to be used in train and testing loop with iterator
+    @param data: the main dataset
+    @param batch_size: size of batch to sample
+    @param split: whether to load train or val set
+    @return: yield a tuple of captions, image_features, urls
+    """
     split_total_size = data['%s_captions' % split].shape[0]
     permutation = torch.randperm(split_total_size)
 
     for i in range(0, split_total_size, batch_size):
-        mask = permutation[i: i+batch_size]
+        mask = permutation[i: i + batch_size]
         captions = data['%s_captions' % split][mask]
         image_idxs = data['%s_image_idxs' % split][mask]
         image_features = data['%s_features' % split][image_idxs]
@@ -136,7 +178,12 @@ def get_coco_minibatches(data, batch_size=100, split='train'):
         yield captions, image_features, urls
 
 
-def get_coco_validation_data(data, data_size=None):
+def get_coco_validation_data(data):
+    """
+    Get all validation data
+    @param data: the main dataset
+    @return: tuple of captions, image_features, urls
+    """
     captions = data['val_captions']
     image_features = data['val_features']
     urls = data['val_urls']
@@ -144,15 +191,31 @@ def get_coco_validation_data(data, data_size=None):
 
 
 def image_from_url(url):
+    """
+    Download the image given by url
+    @param url: web url of image
+    @return: Image object
+    """
     response = requests.get(url)
     img = Image.open(BytesIO(response.content))
     return img
 
 
 def global_minibatch_number(epoch, batch_id, batch_size):
-    return epoch*batch_size + batch_id
+    """
+    get global counter of iteration for smooth plotting
+    @param epoch: epoch
+    @param batch_id: the batch number
+    @param batch_size: batch size
+    @return: global counter of iteration
+    """
+    return epoch * batch_size + batch_id
+
 
 def print_garbage_collection():
+    """
+    print python GC state for debugging
+    """
     print("-" * 30)
     for obj in gc.get_objects():
         try:
@@ -164,6 +227,12 @@ def print_garbage_collection():
 
 
 def post_process_data(image_caption_data, top_item_count=5):
+    """
+    compare actual and generated caption by scoring each line. sort the results and
+    get top_item_count number of elements. Download images for top elements and save results.
+    @param image_caption_data: dict of various path
+    @param top_item_count: number of items to get with top score
+    """
     score_list = []
 
     real_captions_filename = image_caption_data["real_captions_path"]
@@ -215,8 +284,11 @@ def post_process_data(image_caption_data, top_item_count=5):
 
 
 def save_a2c_model(model, save_paths):
-    from torch import save
-
+    """
+    save the model weights in file
+    @param model: model to save
+    @param save_paths: path where to save
+    """
     if isinstance(save_paths, list):
         for path in save_paths:
             save(model.state_dict(), path)
@@ -225,16 +297,23 @@ def save_a2c_model(model, save_paths):
 
 
 def load_a2c_models(model_path, train_data, network_paths, bidirectional):
-    
+    """
+    Load the pretrained networks
+    @param model_path: path of the weigth files
+    @param train_data: used to create objects while pre-loading nets
+    @param network_paths: dict of pretrained models
+    @param bidirectional: whether to use bi-LSTM
+    @return:
+    """
     policy_network = PolicyNetwork(train_data["word_to_idx"], \
-                        pretrained_embeddings=train_data["embeddings"], \
-                            bidirectional=bidirectional).to(device)
+                                   pretrained_embeddings=train_data["embeddings"], \
+                                   bidirectional=bidirectional).to(device)
     policy_network.load_state_dict(torch.load(network_paths["policy_network"], map_location=device), strict=False)
     policy_network.train(mode=False)
 
     value_network = ValueNetwork(train_data["word_to_idx"], \
-                        pretrained_embeddings=train_data["embeddings"], \
-                            bidirectional=bidirectional).to(device)
+                                 pretrained_embeddings=train_data["embeddings"], \
+                                 bidirectional=bidirectional).to(device)
     value_network.load_state_dict(torch.load(network_paths["value_network"], map_location=device), strict=False)
     value_network.train(mode=False)
 
@@ -243,8 +322,11 @@ def load_a2c_models(model_path, train_data, network_paths, bidirectional):
 
     return a2c_network
 
-def get_filename(base_name, bidirectional, curriculum=None):
 
+def get_filename(base_name, bidirectional, curriculum=None):
+    """
+    utility function to parse filename for bidirectional and curriculum
+    """
     name, ext = os.path.splitext(base_name)
     if bidirectional:
         name += "_bidirectional"
@@ -257,7 +339,11 @@ def get_filename(base_name, bidirectional, curriculum=None):
 
 
 def calculate_a2cNetwork_score(image_caption_data, save_paths):
-    
+    """
+    calculate the a2c network's output and store results in file.
+    @param image_caption_data: dict of the paths for real and generated captions
+    @param save_paths: dict of the paths to save results data
+    """
     real_captions_filename = image_caption_data["real_captions_path"]
     generated_captions_filename = image_caption_data["generated_captions_path"]
 
@@ -273,7 +359,11 @@ def calculate_a2cNetwork_score(image_caption_data, save_paths):
 
 
 def get_preprocessed_corpus(base_dir):
+    """
 
+    @param base_dir:
+    @return:
+    """
     data = load_data(base_dir=base_dir, max_train=None, print_keys=False)
     idx_to_word = data["idx_to_word"]
     corpus_data = [simple_preprocess(" ".join([idx_to_word[d] for d in sent])) for sent in data["train_captions"]]
@@ -281,8 +371,13 @@ def get_preprocessed_corpus(base_dir):
 
     return corpus_data
 
+
 def get_embeddings(emb_type):
-    
+    """
+
+    @param emb_type:
+    @return:
+    """
     embeddings = None
     emb_name = ""
 
@@ -296,14 +391,18 @@ def get_embeddings(emb_type):
         emb_name = "glove-wiki-gigaword-300"
     elif os.path.isfile(emb_name):
         return emb_name
-    
+
     embeddings = api.load(emb_name)
 
     return embeddings
 
 
 def get_embedding_model(path):
+    """
 
+    @param path:
+    @return:
+    """
     if isinstance(path, gensim.models.keyedvectors.BaseKeyedVectors):
         model = path
     elif isinstance(path, gensim.models.base_any2vec.BaseWordEmbeddingsModel):
@@ -317,7 +416,12 @@ def get_embedding_model(path):
 
 
 def get_vectors_by_by_vocab(model, word_to_idx):
+    """
 
+    @param model:
+    @param word_to_idx:
+    @return:
+    """
     idx_to_word = {i: w for w, i in word_to_idx.items()}
     new_vectors = np.empty((len(idx_to_word), model.vectors.shape[1]), dtype=np.float32)
     curr_vecs = []
@@ -338,7 +442,13 @@ def get_vectors_by_by_vocab(model, word_to_idx):
 
 
 def load_word_embeddings(embedding_type, target_data, train_corpus=None):
+    """
 
+    @param embedding_type:
+    @param target_data:
+    @param train_corpus:
+    @return:
+    """
     if embedding_type == "none":
         return None
 
