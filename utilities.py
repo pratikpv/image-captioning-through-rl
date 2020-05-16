@@ -309,17 +309,17 @@ def load_a2c_models(model_path, train_data, network_paths, bidirectional):
                                    pretrained_embeddings=train_data["embeddings"], \
                                    bidirectional=bidirectional).to(device)
     policy_network.load_state_dict(torch.load(network_paths["policy_network"], map_location=device), strict=False)
-    policy_network.train(mode=False)
 
     value_network = ValueNetwork(train_data["word_to_idx"], \
                                  pretrained_embeddings=train_data["embeddings"], \
                                  bidirectional=bidirectional).to(device)
     value_network.load_state_dict(torch.load(network_paths["value_network"], map_location=device), strict=False)
-    value_network.train(mode=False)
 
     a2c_network = AdvantageActorCriticNetwork(value_network, policy_network).to(device)
     a2c_network.load_state_dict(torch.load(model_path, map_location=device), strict=False)
 
+    a2c_network.policy_network.train(mode=False)
+    a2c_network.value_network.train(mode=False)
     return a2c_network
 
 
