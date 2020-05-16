@@ -1,3 +1,14 @@
+###################################################
+# Image Captioning with Deep Reinforcement Learning
+# SJSU CMPE-297-03 | Spring 2020
+#
+#
+# Team:
+# Pratikkumar Prajapati
+# Aashay Mokadam
+# Karthik Munipalle
+###################################################
+
 """
 Computes the BLEU, ROUGE, METEOR, and CIDER
 using the COCO metrics scripts
